@@ -23,7 +23,7 @@ def load_encryption_keys():
 
     keys_json = os.getenv('ENCRYPTION_KEYS')
     if not keys_json:
-        logger.info("ENCRYPTION_KEYS not set, will use default key")
+        print("ENCRYPTION_KEYS not set, will use default key")
         return None
 
     try:
@@ -36,7 +36,7 @@ def load_encryption_keys():
 
         return decoded_keys
     except (json.JSONDecodeError, ValueError) as e:
-        logger.error(f"Failed to parse ENCRYPTION_KEYS: {e}")
+        print(f"Failed to parse ENCRYPTION_KEYS: {e}", file=sys.stderr)
         return None
 
 
@@ -57,7 +57,7 @@ def decrypt_submissions(student_id: str, assignment_id: str):
 
     if keys_data is None:
         # Use default encryption key
-        logger.info("Using default encryption key for all students")
+        print("Using default encryption key for all students")
 
         # Check if default key secret is provided
         default_key_b64 = os.getenv('DEFAULT_ENCRYPTION_KEY')
@@ -66,7 +66,7 @@ def decrypt_submissions(student_id: str, assignment_id: str):
             default_key = base64.b64decode(default_key_b64)
             default_key_path = keys_dir / "default.key"
             default_key_path.write_bytes(default_key)
-            logger.info("Loaded default key from environment")
+            print("Loaded default key from environment")
 
         encryption_manager = EncryptionManager(keys_dir, use_default_key=True)
     else:

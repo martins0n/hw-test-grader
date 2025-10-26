@@ -3,6 +3,7 @@
 Helper script to export secrets for GitHub Actions.
 Converts files to formats suitable for GitHub Secrets.
 """
+import os
 import base64
 import json
 import sys
