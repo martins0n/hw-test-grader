@@ -21,6 +21,10 @@ jobs:
   download:
     runs-on: ubuntu-latest
 
+    # Grant write permissions to create branches and commit
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -80,11 +84,13 @@ jobs:
 
       - name: Set up GitHub token
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Use PAT if available, otherwise use default GITHUB_TOKEN
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
           GITHUB_REPO: ${{ github.repository }}
         run: |
           echo "GITHUB_TOKEN=$GITHUB_TOKEN" >> .env
           echo "GITHUB_REPO=$GITHUB_REPO" >> .env
+          echo "Using repository: $GITHUB_REPO"
 
       - name: Download submissions
         env:

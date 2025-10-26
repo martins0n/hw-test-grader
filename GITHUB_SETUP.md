@@ -29,6 +29,32 @@ This will display all the values you need to copy to GitHub Secrets.
 
 ### Required Secrets
 
+#### 0. PAT_TOKEN (GitHub Personal Access Token)
+
+**What it is**: Personal Access Token for GitHub API operations (creating branches, committing)
+
+**Why needed**: The default GITHUB_TOKEN has limited permissions and may not be able to create branches
+
+**How to create**:
+1. Go to GitHub Settings (your profile, not repository)
+2. Click **Developer settings** → **Personal access tokens** → **Tokens (classic)**
+3. Click **Generate new token** → **Generate new token (classic)**
+4. Give it a name: `homework-grader-workflow`
+5. Set expiration (recommended: 90 days, then refresh)
+6. Select scopes:
+   - ✅ **repo** (all sub-options)
+7. Click **Generate token**
+8. **Copy the token immediately** (you won't see it again!)
+
+**How to add**:
+1. Go to your repository → Settings → Secrets and variables → Actions
+2. Click "New repository secret"
+3. Name: `PAT_TOKEN`
+4. Value: Paste your personal access token
+5. Click "Add secret"
+
+**Security note**: This token has write access to your repositories. Keep it secret!
+
 #### 1. GOOGLE_CREDENTIALS
 
 **What it is**: Your Google Cloud OAuth credentials file
