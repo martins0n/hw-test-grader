@@ -97,16 +97,29 @@ def decrypt_submissions(student_id: str, assignment_id: str):
         decrypted_name = encrypted_file.name[:-4]
         decrypted_path = decrypted_dir / decrypted_name
 
-        success = encryption_manager.decrypt_file(
-            encrypted_file,
-            decrypted_path,
-            student_id
-        )
+        try:
+            # Get the key
+            key = encryption_manager.get_or_create_key(student_id)
+            from cryptography.fernet import Fernet
+            fernet = Fernet(key)
 
-        if success:
+            # Decrypt
+            encrypted_data = encrypted_file.read_bytes()
+            print(f"Encrypted file size: {len(encrypted_data)} bytes")
+            print(f"Key length: {len(key)} bytes")
+
+            plaintext = fernet.decrypt(encrypted_data)
+
+            # Save decrypted file
+            decrypted_path.parent.mkdir(parents=True, exist_ok=True)
+            decrypted_path.write_bytes(plaintext)
+
             print(f"✓ Decrypted: {decrypted_name}")
-        else:
+        except Exception as e:
             print(f"✗ Failed to decrypt: {encrypted_file.name}")
+            print(f"Error details: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
             sys.exit(1)
 
     print(f"\nAll files decrypted to: {decrypted_dir}")
