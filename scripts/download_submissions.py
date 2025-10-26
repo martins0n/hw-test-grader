@@ -124,7 +124,8 @@ def process_assignments(processor: SubmissionProcessor, assignments: List[Dict])
         logger.info(f"Processing assignment: {name}")
 
         try:
-            processor.process_course_submissions(course_id, coursework_id)
+            # Pass the assignment name to use instead of ID
+            processor.process_course_submissions(course_id, coursework_id, name)
             summary['successful'] += 1
             summary['details'].append({
                 'name': name,
@@ -160,6 +161,7 @@ def process_single_assignment(processor: SubmissionProcessor, course_id: str, co
     logger.info(f"Processing single assignment: {course_id}/{coursework_id}")
 
     try:
+        # Assignment title will be fetched automatically
         processor.process_course_submissions(course_id, coursework_id)
         logger.info("✓ Successfully processed assignment")
 

@@ -26,18 +26,18 @@ class GitHubManager:
         self.repo: Repository.Repository = self.github.get_repo(repo_name)
         logger.info(f"Connected to GitHub repository: {repo_name}")
 
-    def get_or_create_branch(self, student_id: str, assignment_id: str) -> str:
+    def get_or_create_branch(self, student_id: str, assignment_name: str) -> str:
         """
         Get or create a branch for a student's assignment.
 
         Args:
-            student_id: Student identifier
-            assignment_id: Assignment identifier
+            student_id: Student identifier (email-based)
+            assignment_name: Sanitized assignment name
 
         Returns:
             Branch name
         """
-        branch_name = f"student-{student_id}/assignment-{assignment_id}"
+        branch_name = f"student-{student_id}/assignment-{assignment_name}"
 
         try:
             # Check if branch exists

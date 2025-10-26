@@ -51,15 +51,32 @@ class SubmissionProcessor:
         for directory in [self.submissions_dir, self.encrypted_dir, self.decrypted_dir, self.reports_dir]:
             directory.mkdir(exist_ok=True)
 
-    def process_course_submissions(self, course_id: str, coursework_id: str):
+    def process_course_submissions(self, course_id: str, coursework_id: str, coursework_title: str = None):
         """
         Process all submissions for a specific assignment.
 
         Args:
             course_id: Google Classroom course ID
             coursework_id: Coursework/assignment ID
+            coursework_title: Assignment title/name (optional, will fetch if not provided)
         """
         logger.info(f"Processing submissions for course {course_id}, assignment {coursework_id}")
+
+        # Get assignment title if not provided
+        if not coursework_title:
+            try:
+                coursework_list = self.classroom.list_course_work(course_id)
+                for work in coursework_list:
+                    if work['id'] == coursework_id:
+                        coursework_title = work.get('title', coursework_id)
+                        break
+                if not coursework_title:
+                    coursework_title = coursework_id
+            except Exception as e:
+                logger.warning(f"Could not fetch assignment title: {e}")
+                coursework_title = coursework_id
+
+        logger.info(f"Assignment title: {coursework_title}")
 
         # Get all submissions
         submissions = self.classroom.get_submissions(course_id, coursework_id)
@@ -67,11 +84,33 @@ class SubmissionProcessor:
 
         for submission in submissions:
             try:
-                self.process_single_submission(course_id, coursework_id, submission)
+                self.process_single_submission(course_id, coursework_id, submission, coursework_title)
             except Exception as e:
                 logger.error(f"Error processing submission {submission.get('id')}: {e}")
 
-    def process_single_submission(self, course_id: str, coursework_id: str, submission: Dict):
+    def _sanitize_name(self, name: str) -> str:
+        """
+        Sanitize a name for use in git branches and file paths.
+
+        Args:
+            name: Name to sanitize
+
+        Returns:
+            Sanitized name safe for git branches
+        """
+        import re
+        # Convert to lowercase
+        name = name.lower()
+        # Replace spaces and special chars with hyphens
+        name = re.sub(r'[^a-z0-9]+', '-', name)
+        # Remove leading/trailing hyphens
+        name = name.strip('-')
+        # Limit length
+        if len(name) > 50:
+            name = name[:50].rstrip('-')
+        return name
+
+    def process_single_submission(self, course_id: str, coursework_id: str, submission: Dict, coursework_title: str = None):
         """
         Process a single student submission.
 
@@ -79,6 +118,7 @@ class SubmissionProcessor:
             course_id: Course ID
             coursework_id: Assignment ID
             submission: Submission dictionary from Google Classroom
+            coursework_title: Assignment title/name
         """
         user_id = submission['userId']
         submission_id = submission['id']
@@ -86,6 +126,9 @@ class SubmissionProcessor:
 
         # Get student email for identification
         student_id = self.classroom.get_student_email(course_id, user_id)
+
+        # Sanitize assignment name for use in paths
+        assignment_name = self._sanitize_name(coursework_title) if coursework_title else coursework_id
 
         logger.info(f"Processing submission {submission_id} from student {student_id} (state: {state})")
 
@@ -117,28 +160,30 @@ class SubmissionProcessor:
             return
 
         # Encrypt and upload to GitHub, and create PR
-        self._encrypt_and_upload(student_id, coursework_id, downloaded_files, course_id, submission)
+        self._encrypt_and_upload(student_id, assignment_name, downloaded_files, course_id, submission, coursework_title)
 
     def _encrypt_and_upload(
         self,
         student_id: str,
-        assignment_id: str,
+        assignment_name: str,
         files: List[Path],
         course_id: str = None,
-        submission: Dict = None
+        submission: Dict = None,
+        assignment_title: str = None
     ):
         """
         Encrypt files and upload to GitHub, then create PR.
 
         Args:
             student_id: Student ID (email-based)
-            assignment_id: Assignment ID
+            assignment_name: Sanitized assignment name for branches/paths
             files: List of file paths to encrypt and upload
             course_id: Course ID (for getting coursework title)
             submission: Submission dict (for PR metadata)
+            assignment_title: Original assignment title for display
         """
         # Create branch
-        branch_name = self.github.get_or_create_branch(student_id, assignment_id)
+        branch_name = self.github.get_or_create_branch(student_id, assignment_name)
 
         # Encrypt and prepare files
         files_to_commit = []
@@ -149,13 +194,13 @@ class SubmissionProcessor:
 
             if success:
                 # Prepare for GitHub commit
-                repo_path = f"submissions/{student_id}/{assignment_id}/{file_path.name}.enc"
+                repo_path = f"submissions/{student_id}/{assignment_name}/{file_path.name}.enc"
                 files_to_commit.append((encrypted_path, repo_path))
 
         # Commit to GitHub
         if files_to_commit:
             timestamp = datetime.now().isoformat()
-            commit_message = f"Submission for {assignment_id} by student {student_id} at {timestamp}"
+            commit_message = f"Submission for {assignment_title or assignment_name} by student {student_id} at {timestamp}"
 
             # Try batch commit first
             success = self.github.commit_multiple_files(
@@ -185,12 +230,12 @@ class SubmissionProcessor:
                 logger.info(f"Successfully uploaded {len(files_to_commit)} encrypted files to GitHub")
 
                 # Create Pull Request
-                pr_title = f"Submission: {student_id} - Assignment {assignment_id}"
+                pr_title = f"Submission: {student_id} - {assignment_title or assignment_name}"
 
                 # Build PR body
                 pr_body = f"## Student Submission\n\n"
                 pr_body += f"**Student:** {student_id}\n"
-                pr_body += f"**Assignment:** {assignment_id}\n"
+                pr_body += f"**Assignment:** {assignment_title or assignment_name}\n"
                 pr_body += f"**Submitted:** {timestamp}\n"
                 pr_body += f"**Files:** {len(files_to_commit)}\n\n"
 
