@@ -15,20 +15,45 @@ logger = logging.getLogger(__name__)
 class EncryptionManager:
     """Manages encryption and decryption of student files."""
 
-    def __init__(self, keys_dir: Path = Path("student_keys")):
+    def __init__(self, keys_dir: Path = Path("student_keys"), use_default_key: bool = False):
         """
         Initialize the encryption manager.
 
         Args:
             keys_dir: Directory to store student-specific encryption keys
+            use_default_key: If True, use a single default key for all students
         """
         self.keys_dir = Path(keys_dir)
         self.keys_dir.mkdir(exist_ok=True)
         self._keys_cache: Dict[str, bytes] = {}
+        self.use_default_key = use_default_key
+        self._default_key: bytes = None
 
     def _get_key_path(self, student_id: str) -> Path:
         """Get the path to a student's key file."""
         return self.keys_dir / f"{student_id}.key"
+
+    def _get_or_create_default_key(self) -> bytes:
+        """
+        Get or create the default encryption key.
+
+        Returns:
+            Default encryption key bytes
+        """
+        if self._default_key:
+            return self._default_key
+
+        default_key_path = self.keys_dir / "default.key"
+
+        if default_key_path.exists():
+            self._default_key = default_key_path.read_bytes()
+            logger.info("Loaded existing default encryption key")
+        else:
+            self._default_key = Fernet.generate_key()
+            default_key_path.write_bytes(self._default_key)
+            logger.info("Generated new default encryption key")
+
+        return self._default_key
 
     def get_or_create_key(self, student_id: str) -> bytes:
         """
@@ -40,6 +65,10 @@ class EncryptionManager:
         Returns:
             Encryption key bytes
         """
+        # Use default key if configured
+        if self.use_default_key:
+            return self._get_or_create_default_key()
+
         if student_id in self._keys_cache:
             return self._keys_cache[student_id]
 

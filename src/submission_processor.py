@@ -31,7 +31,10 @@ class SubmissionProcessor:
         self.classroom = ClassroomClient(
             credentials_path=os.getenv('GOOGLE_CLASSROOM_CREDENTIALS', 'credentials.json')
         )
-        self.encryption = EncryptionManager()
+
+        # Use default key if USE_DEFAULT_ENCRYPTION_KEY is set
+        use_default_key = os.getenv('USE_DEFAULT_ENCRYPTION_KEY', 'false').lower() == 'true'
+        self.encryption = EncryptionManager(use_default_key=use_default_key)
 
         github_token = os.getenv('GITHUB_TOKEN')
         github_repo = os.getenv('GITHUB_REPO')

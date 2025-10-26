@@ -69,6 +69,7 @@ jobs:
           STUDENT_ID: ${{ steps.extract_info.outputs.student_id }}
           ASSIGNMENT_ID: ${{ steps.extract_info.outputs.assignment_id }}
           ENCRYPTION_KEYS: ${{ secrets.ENCRYPTION_KEYS }}
+          DEFAULT_ENCRYPTION_KEY: ${{ secrets.DEFAULT_ENCRYPTION_KEY }}
         run: |
           python scripts/decrypt_submission.py \
             --student-id "$STUDENT_ID" \

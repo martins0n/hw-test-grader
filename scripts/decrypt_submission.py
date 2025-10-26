@@ -15,21 +15,29 @@ from src.encryption import EncryptionManager
 
 
 def load_encryption_keys():
-    """Load encryption keys from environment variable."""
+    """
+    Load encryption keys from environment variable.
+    Returns None if using default key instead of per-student keys.
+    """
     import base64
 
     keys_json = os.getenv('ENCRYPTION_KEYS')
     if not keys_json:
-        raise ValueError("ENCRYPTION_KEYS environment variable not set")
+        logger.info("ENCRYPTION_KEYS not set, will use default key")
+        return None
 
-    keys_data = json.loads(keys_json)
+    try:
+        keys_data = json.loads(keys_json)
 
-    # Decode base64-encoded keys
-    decoded_keys = {}
-    for student_id, key_b64 in keys_data.items():
-        decoded_keys[student_id] = base64.b64decode(key_b64).decode('utf-8')
+        # Decode base64-encoded keys
+        decoded_keys = {}
+        for student_id, key_b64 in keys_data.items():
+            decoded_keys[student_id] = base64.b64decode(key_b64).decode('utf-8')
 
-    return decoded_keys
+        return decoded_keys
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.error(f"Failed to parse ENCRYPTION_KEYS: {e}")
+        return None
 
 
 def decrypt_submissions(student_id: str, assignment_id: str):
@@ -43,18 +51,34 @@ def decrypt_submissions(student_id: str, assignment_id: str):
     # Load keys
     keys_data = load_encryption_keys()
 
-    if student_id not in keys_data:
-        raise ValueError(f"No encryption key found for student {student_id}")
-
     # Set up encryption manager
     keys_dir = Path("student_keys")
     keys_dir.mkdir(exist_ok=True)
 
-    # Write student's key to file
-    key_path = keys_dir / f"{student_id}.key"
-    key_path.write_text(keys_data[student_id])
+    if keys_data is None:
+        # Use default encryption key
+        logger.info("Using default encryption key for all students")
 
-    encryption_manager = EncryptionManager(keys_dir)
+        # Check if default key secret is provided
+        default_key_b64 = os.getenv('DEFAULT_ENCRYPTION_KEY')
+        if default_key_b64:
+            import base64
+            default_key = base64.b64decode(default_key_b64)
+            default_key_path = keys_dir / "default.key"
+            default_key_path.write_bytes(default_key)
+            logger.info("Loaded default key from environment")
+
+        encryption_manager = EncryptionManager(keys_dir, use_default_key=True)
+    else:
+        # Use per-student keys
+        if student_id not in keys_data:
+            raise ValueError(f"No encryption key found for student {student_id}")
+
+        # Write student's key to file
+        key_path = keys_dir / f"{student_id}.key"
+        key_path.write_text(keys_data[student_id])
+
+        encryption_manager = EncryptionManager(keys_dir, use_default_key=False)
 
     # Find encrypted files (assignment_id is now the assignment name)
     submissions_dir = Path("submissions") / student_id / assignment_id

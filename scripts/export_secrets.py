@@ -134,25 +134,48 @@ def main():
         print("  Authenticate first by running: python example_usage.py")
         print("  Then run this script again.")
 
-    # 3. ENCRYPTION_KEYS
-    print("\n\n3. ENCRYPTION_KEYS")
+    # 3. ENCRYPTION_KEYS or DEFAULT_ENCRYPTION_KEY
+    print("\n\n3. ENCRYPTION_KEYS (or DEFAULT_ENCRYPTION_KEY)")
     print("-" * 80)
-    try:
-        keys_json = export_encryption_keys()
-        keys_data = json.loads(keys_json)
 
-        if keys_data:
-            print(f"✓ Found {len(keys_data)} student encryption key(s)")
-            print("\nCopy this to GitHub Secret 'ENCRYPTION_KEYS':")
+    # Check if using default key
+    use_default = os.getenv('USE_DEFAULT_ENCRYPTION_KEY', 'true').lower() == 'true'
+
+    if use_default:
+        print("Using default encryption key mode (USE_DEFAULT_ENCRYPTION_KEY=true)")
+        default_key_path = Path("student_keys/default.key")
+
+        if default_key_path.exists():
+            default_key = default_key_path.read_bytes()
+            default_key_b64 = base64.b64encode(default_key).decode('utf-8')
+
+            print("✓ Found default encryption key")
+            print("\nCopy this to GitHub Secret 'DEFAULT_ENCRYPTION_KEY':")
             print("\n" + "─" * 80)
-            print(keys_json)
+            print(default_key_b64)
             print("─" * 80)
-            print("\nNote: Keys are base64-encoded for JSON serialization.")
+            print("\nNote: This single key will be used for all students (simpler setup)")
         else:
-            print("✗ No student keys found")
-            print("  Keys will be generated when you process your first submissions")
-    except Exception as e:
-        print(f"✗ Error exporting encryption keys: {e}")
+            print("✗ No default key found yet")
+            print("  Will be generated on first submission")
+    else:
+        print("Using per-student keys mode (USE_DEFAULT_ENCRYPTION_KEY=false)")
+        try:
+            keys_json = export_encryption_keys()
+            keys_data = json.loads(keys_json)
+
+            if keys_data:
+                print(f"✓ Found {len(keys_data)} student encryption key(s)")
+                print("\nCopy this to GitHub Secret 'ENCRYPTION_KEYS':")
+                print("\n" + "─" * 80)
+                print(keys_json)
+                print("─" * 80)
+                print("\nNote: Keys are base64-encoded for JSON serialization.")
+            else:
+                print("✗ No student keys found")
+                print("  Keys will be generated when you process your first submissions")
+        except Exception as e:
+            print(f"✗ Error exporting encryption keys: {e}")
 
     # 4. COURSE_IDS (simplest - just course IDs)
     print("\n\n4. COURSE_IDS (simplest, recommended)")
@@ -231,10 +254,15 @@ def main():
     print("4. Add each secret with the name and value shown above")
     print("\nRequired secrets:")
     print("  - GOOGLE_CREDENTIALS")
-    print("  - ENCRYPTION_KEYS (after processing first submission)")
     print("  - COURSE_IDS (simplest: just comma-separated course IDs)")
+    print("\nEncryption (choose one):")
+    print("  - DEFAULT_ENCRYPTION_KEY (if USE_DEFAULT_ENCRYPTION_KEY=true)")
+    print("    Simpler: One key for all students")
+    print("  - ENCRYPTION_KEYS (if USE_DEFAULT_ENCRYPTION_KEY=false)")
+    print("    More secure: Per-student keys")
     print("\nOptional but recommended:")
     print("  - GOOGLE_TOKEN (avoids re-authentication)")
+    print("  - USE_DEFAULT_ENCRYPTION_KEY (set to 'true' for simpler setup)")
     print("\nAlternative to COURSE_IDS:")
     print("  - COURSES_CONFIG (if you want to specify course names)")
     print("  - ASSIGNMENTS_CONFIG (if you want specific assignments only)")
