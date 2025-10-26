@@ -18,13 +18,14 @@ def grade_submission(student_id: str, assignment_id: str, output_path: str):
     Grade a student's submission.
 
     Args:
-        student_id: Student identifier
-        assignment_id: Assignment identifier
+        student_id: Student identifier (email-based)
+        assignment_id: Assignment identifier (name-based)
         output_path: Path to save the grading report
     """
     grader = NotebookGrader()
 
     # Find decrypted notebook
+    # Note: assignment_id is actually the assignment name now
     decrypted_dir = Path("decrypted_submissions") / student_id / assignment_id
     notebooks = list(decrypted_dir.glob("*.ipynb"))
 
@@ -41,10 +42,12 @@ def grade_submission(student_id: str, assignment_id: str, output_path: str):
         print(f"Grading notebook: {notebook_path}")
 
         # Load expected outputs for this assignment
+        # Try assignment name first, then fall back to numeric ID if it exists
         expected_path = Path("test_cases") / assignment_id / "expected_output.json"
 
         if not expected_path.exists():
             print(f"Warning: No expected output file found at {expected_path}")
+            print("Tip: Create test_cases/{assignment_name}/expected_output.json")
             print("Executing notebook without comparison...")
 
             # Execute notebook without grading

@@ -37,8 +37,8 @@ def decrypt_submissions(student_id: str, assignment_id: str):
     Decrypt submission files for a student.
 
     Args:
-        student_id: Student identifier
-        assignment_id: Assignment identifier
+        student_id: Student identifier (email-based)
+        assignment_id: Assignment identifier (name-based)
     """
     # Load keys
     keys_data = load_encryption_keys()
@@ -56,7 +56,7 @@ def decrypt_submissions(student_id: str, assignment_id: str):
 
     encryption_manager = EncryptionManager(keys_dir)
 
-    # Find encrypted files
+    # Find encrypted files (assignment_id is now the assignment name)
     submissions_dir = Path("submissions") / student_id / assignment_id
     decrypted_dir = Path("decrypted_submissions") / student_id / assignment_id
     decrypted_dir.mkdir(parents=True, exist_ok=True)

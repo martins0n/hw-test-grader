@@ -54,15 +54,15 @@ jobs:
 
           echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
 
-          # Extract student ID and assignment ID from branch name
-          # Format: student-{student_id}/assignment-{assignment_id}
+          # Extract student ID and assignment name from branch name
+          # Format: student-{student_email}/assignment-{assignment_name}
           STUDENT_ID=$(echo $BRANCH_NAME | sed 's/student-\([^/]*\).*/\1/')
-          ASSIGNMENT_ID=$(echo $BRANCH_NAME | sed 's/.*assignment-\(.*\)/\1/')
+          ASSIGNMENT_NAME=$(echo $BRANCH_NAME | sed 's/.*assignment-\(.*\)/\1/')
 
           echo "student_id=$STUDENT_ID" >> $GITHUB_OUTPUT
-          echo "assignment_id=$ASSIGNMENT_ID" >> $GITHUB_OUTPUT
+          echo "assignment_id=$ASSIGNMENT_NAME" >> $GITHUB_OUTPUT
 
-          echo "Processing submission for Student: $STUDENT_ID, Assignment: $ASSIGNMENT_ID"
+          echo "Processing submission for Student: $STUDENT_ID, Assignment: $ASSIGNMENT_NAME"
 
       - name: Decrypt submission files
         env:
