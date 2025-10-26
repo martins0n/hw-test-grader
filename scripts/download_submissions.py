@@ -22,9 +22,39 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def load_courses_config() -> Optional[List[Dict]]:
+    """
+    Load courses configuration from environment or file.
+
+    Returns:
+        List of course configurations or None
+    """
+    # Try to load from environment variable
+    config_json = os.getenv('COURSES_CONFIG')
+    if config_json:
+        try:
+            return json.loads(config_json)
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse COURSES_CONFIG: {e}")
+            return None
+
+    # Try to load from file
+    config_path = Path('courses_config.json')
+    if config_path.exists():
+        try:
+            with open(config_path) as f:
+                return json.load(f)
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse courses_config.json: {e}")
+            return None
+
+    return None
+
+
 def load_assignments_config() -> Optional[List[Dict]]:
     """
     Load assignments configuration from environment or file.
+    This is the old format - kept for backwards compatibility.
 
     Returns:
         List of assignment configurations or None
@@ -140,38 +170,117 @@ def process_single_assignment(processor: SubmissionProcessor, course_id: str, co
         raise
 
 
+def auto_discover_from_courses(processor: SubmissionProcessor, courses: List[Dict]) -> List[Dict]:
+    """
+    Auto-discover all assignments from specified courses.
+
+    Args:
+        processor: SubmissionProcessor instance
+        courses: List of course configs with course_id
+
+    Returns:
+        List of discovered assignments
+    """
+    discovered = []
+
+    logger.info(f"Auto-discovering assignments from {len(courses)} course(s)")
+
+    for course_config in courses:
+        course_id = course_config.get('course_id')
+        course_name = course_config.get('name', f'Course {course_id}')
+
+        if not course_id:
+            logger.warning(f"Skipping course config without course_id: {course_config}")
+            continue
+
+        logger.info(f"Fetching assignments from: {course_name}")
+
+        try:
+            coursework_list = processor.classroom.list_course_work(course_id)
+
+            # Filter to only published assignments
+            published = [w for w in coursework_list if w.get('state') == 'PUBLISHED']
+
+            logger.info(f"  Found {len(published)} published assignment(s)")
+
+            for work in published:
+                work_title = work.get('title', 'Untitled')
+                work_id = work['id']
+
+                assignment = {
+                    'name': work_title,
+                    'course_id': course_id,
+                    'coursework_id': work_id
+                }
+
+                discovered.append(assignment)
+                logger.info(f"    ✓ {work_title}")
+
+        except Exception as e:
+            logger.error(f"Failed to fetch coursework from {course_name}: {e}")
+            continue
+
+    logger.info(f"Auto-discovered {len(discovered)} total assignment(s)")
+    return discovered
+
+
 def process_all_configured(processor: SubmissionProcessor):
     """
     Process all configured assignments.
+    Supports two modes:
+    1. COURSES_CONFIG: Auto-discover all assignments from specified courses
+    2. ASSIGNMENTS_CONFIG: Process specific assignments (backwards compatibility)
 
     Args:
         processor: SubmissionProcessor instance
     """
-    assignments = load_assignments_config()
+    # Try new courses-based config first
+    courses = load_courses_config()
 
-    if not assignments:
-        logger.warning("No assignments configured. Set ASSIGNMENTS_CONFIG or create assignments_config.json")
+    if courses:
+        logger.info("Using COURSES_CONFIG - auto-discovering assignments")
+        assignments = auto_discover_from_courses(processor, courses)
 
-        # List available courses and coursework for reference
-        logger.info("Listing available courses:")
-        try:
-            courses = processor.classroom.list_courses()
-            logger.info(f"Found {len(courses)} courses")
-
+        if not assignments:
+            logger.warning("No assignments discovered from configured courses")
             with open('download_summary.txt', 'w') as f:
-                f.write(f"\n### No Assignments Configured\n")
-                f.write(f"- Found {len(courses)} available courses\n")
-                f.write(f"- Please configure ASSIGNMENTS_CONFIG secret or assignments_config.json\n")
-                f.write(f"\n### Available Courses:\n")
-                for course in courses[:5]:  # Show first 5
-                    f.write(f"- {course['name']} (ID: {course['id']})\n")
+                f.write(f"\n### No Assignments Found\n")
+                f.write(f"- Checked {len(courses)} configured course(s)\n")
+                f.write(f"- No published assignments found\n")
+            return
 
-        except Exception as e:
-            logger.error(f"Failed to list courses: {e}")
+    else:
+        # Fall back to old assignments-based config
+        assignments = load_assignments_config()
 
-        return
+        if not assignments:
+            logger.warning("No courses or assignments configured")
+            logger.info("TIP: Create courses_config.json with your course IDs")
 
-    logger.info(f"Processing {len(assignments)} configured assignments")
+            # List available courses and coursework for reference
+            logger.info("Listing available courses:")
+            try:
+                all_courses = processor.classroom.list_courses()
+                logger.info(f"Found {len(all_courses)} courses")
+
+                with open('download_summary.txt', 'w') as f:
+                    f.write(f"\n### No Configuration Found\n")
+                    f.write(f"- Found {len(all_courses)} available courses\n")
+                    f.write(f"- Create courses_config.json with course IDs (recommended)\n")
+                    f.write(f"- Or create assignments_config.json with specific assignments\n")
+                    f.write(f"\n### Available Courses:\n")
+                    for course in all_courses[:10]:  # Show first 10
+                        f.write(f"- {course['name']} (ID: {course['id']})\n")
+
+            except Exception as e:
+                logger.error(f"Failed to list courses: {e}")
+
+            return
+
+        logger.info(f"Using ASSIGNMENTS_CONFIG - processing {len(assignments)} specific assignment(s)")
+
+    # Process the assignments
+    logger.info(f"Processing {len(assignments)} assignment(s)")
     summary = process_assignments(processor, assignments)
 
     # Write summary

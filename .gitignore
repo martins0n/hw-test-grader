@@ -47,6 +47,7 @@ reports/
 
 # Configuration
 assignments_config.json
+courses_config.json
 download_summary.txt
 keys_backup.json
 github_secrets_export.txt

@@ -22,7 +22,7 @@ def export_file_as_base64(file_path: Path) -> str:
         file_path: Path to the file
 
     Returns:
-        Base64-encoded string
+        Base64-encoded string (single line, no wrapping)
     """
     if not file_path.exists():
         raise FileNotFoundError(f"File not found: {file_path}")
@@ -30,7 +30,11 @@ def export_file_as_base64(file_path: Path) -> str:
     with open(file_path, 'rb') as f:
         content = f.read()
 
-    return base64.b64encode(content).decode('utf-8')
+    # Encode to base64 as a single line (no line breaks)
+    b64_string = base64.b64encode(content).decode('utf-8')
+
+    # Ensure no whitespace
+    return b64_string.strip()
 
 
 def export_json_file(file_path: Path) -> str:
@@ -110,11 +114,19 @@ def main():
         try:
             token_b64 = export_file_as_base64(token_path)
             print("✓ Found token.json")
-            print("\nCopy this to GitHub Secret 'GOOGLE_TOKEN':")
+            print(f"  File size: {token_path.stat().st_size} bytes")
+            print(f"  Base64 length: {len(token_b64)} characters")
+            print("\nCopy this ENTIRE string to GitHub Secret 'GOOGLE_TOKEN':")
+            print("(Copy from the first character to the last, no extra spaces)")
             print("\n" + "─" * 80)
             print(token_b64)
             print("─" * 80)
-            print("\nNote: This is base64-encoded. The workflow will decode it automatically.")
+            print("\nIMPORTANT:")
+            print("  - Copy the ENTIRE string above (all on one line)")
+            print("  - Do NOT add any spaces or newlines before/after")
+            print("  - The workflow will decode it automatically")
+            print("\nTo verify the base64 is valid:")
+            print(f"  echo '{token_b64[:50]}...' | base64 -d > /dev/null && echo 'Valid' || echo 'Invalid'")
         except Exception as e:
             print(f"✗ Error reading token.json: {e}")
     else:
@@ -142,8 +154,28 @@ def main():
     except Exception as e:
         print(f"✗ Error exporting encryption keys: {e}")
 
-    # 4. ASSIGNMENTS_CONFIG
-    print("\n\n4. ASSIGNMENTS_CONFIG (optional)")
+    # 4. COURSES_CONFIG (recommended - auto-discovers assignments)
+    print("\n\n4. COURSES_CONFIG (recommended)")
+    print("-" * 80)
+    courses_path = Path("courses_config.json")
+    if courses_path.exists():
+        try:
+            courses = export_json_file(courses_path)
+            print("✓ Found courses_config.json")
+            print("\nCopy this to GitHub Secret 'COURSES_CONFIG':")
+            print("\n" + "─" * 80)
+            print(courses)
+            print("─" * 80)
+            print("\nNote: This will auto-discover ALL assignments from these courses")
+        except Exception as e:
+            print(f"✗ Error reading courses_config.json: {e}")
+    else:
+        print("✗ courses_config.json not found")
+        print("  Run: python scripts/setup_courses.py")
+        print("  This will auto-discover assignments from selected courses")
+
+    # 5. ASSIGNMENTS_CONFIG (old format, backwards compatibility)
+    print("\n\n5. ASSIGNMENTS_CONFIG (alternative to COURSES_CONFIG)")
     print("-" * 80)
     assignments_path = Path("assignments_config.json")
     if assignments_path.exists():
@@ -154,12 +186,12 @@ def main():
             print("\n" + "─" * 80)
             print(assignments)
             print("─" * 80)
+            print("\nNote: This processes specific assignments only")
         except Exception as e:
             print(f"✗ Error reading assignments_config.json: {e}")
     else:
         print("✗ assignments_config.json not found")
-        print("  Create this file to enable automatic download workflow")
-        print("  See assignments_config.json.example for format")
+        print("  Not needed if using COURSES_CONFIG (recommended)")
 
     # Summary
     print("\n" + "=" * 80)

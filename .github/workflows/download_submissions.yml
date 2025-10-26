@@ -65,10 +65,17 @@ jobs:
           # Set up token if provided
           if [ ! -z "$GOOGLE_TOKEN" ]; then
             # Decode base64-encoded token (binary file)
-            echo "$GOOGLE_TOKEN" | base64 -d > token.json
-            echo "✓ token.json decoded successfully"
+            # Remove any whitespace/newlines first
+            if echo "$GOOGLE_TOKEN" | tr -d '[:space:]' | base64 -d > token.json 2>/dev/null; then
+              echo "✓ token.json decoded successfully"
+            else
+              echo "Warning: Failed to decode GOOGLE_TOKEN (invalid base64)"
+              echo "The workflow will attempt to authenticate without cached token"
+              echo "This may fail if interactive authentication is required"
+              rm -f token.json
+            fi
           else
-            echo "Note: GOOGLE_TOKEN not set - authentication may require manual intervention"
+            echo "Note: GOOGLE_TOKEN not set - will attempt authentication without cached token"
           fi
 
       - name: Set up GitHub token
@@ -83,6 +90,7 @@ jobs:
         env:
           COURSE_ID: ${{ github.event.inputs.course_id }}
           COURSEWORK_ID: ${{ github.event.inputs.coursework_id }}
+          COURSES_CONFIG: ${{ secrets.COURSES_CONFIG }}
           ASSIGNMENTS_CONFIG: ${{ secrets.ASSIGNMENTS_CONFIG }}
         run: |
           python scripts/download_submissions.py
