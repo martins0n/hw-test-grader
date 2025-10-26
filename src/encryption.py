@@ -3,6 +3,8 @@ Simple encryption/decryption module for student submissions.
 Uses Fernet (symmetric encryption) from cryptography library.
 """
 import os
+import base64
+import binascii
 from pathlib import Path
 from typing import Dict
 from cryptography.fernet import Fernet
@@ -44,6 +46,35 @@ class EncryptionManager:
             return self._default_key
 
         default_key_path = self.keys_dir / "default.key"
+
+        # Prefer key supplied via environment (matches CI secrets)
+        default_key_env = os.getenv('DEFAULT_ENCRYPTION_KEY')
+        if default_key_env:
+            env_key = default_key_env.strip()
+            candidates = []
+
+            # First try decoding base64 (export script encodes the key)
+            try:
+                candidates.append(base64.b64decode(env_key))
+            except (binascii.Error, ValueError):
+                logger.warning("DEFAULT_ENCRYPTION_KEY is not valid base64; trying raw value")
+
+            # Always attempt to use the raw value as well (handles single-encoded secrets)
+            candidates.append(env_key.encode('utf-8'))
+
+            for candidate in candidates:
+                try:
+                    # Validate key format before persisting
+                    Fernet(candidate)
+                except ValueError:
+                    continue
+
+                self._default_key = candidate
+                default_key_path.write_bytes(self._default_key)
+                logger.info("Loaded default encryption key from environment")
+                return self._default_key
+
+            logger.error("DEFAULT_ENCRYPTION_KEY provided but not a valid Fernet key")
 
         if default_key_path.exists():
             self._default_key = default_key_path.read_bytes()

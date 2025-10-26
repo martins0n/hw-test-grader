@@ -63,7 +63,15 @@ def decrypt_submissions(student_id: str, assignment_id: str):
         default_key_b64 = os.getenv('DEFAULT_ENCRYPTION_KEY')
         if default_key_b64:
             import base64
+            # Strip any whitespace that might have been added
+            default_key_b64 = default_key_b64.strip()
+            print(f"DEBUG: Base64 key length: {len(default_key_b64)}")
+            print(f"DEBUG: Base64 key (first 20 chars): {default_key_b64[:20]}...")
+
             default_key = base64.b64decode(default_key_b64)
+            print(f"DEBUG: Decoded key length: {len(default_key)} bytes")
+            print(f"DEBUG: Decoded key (first 20 chars): {default_key[:20]}")
+
             default_key_path = keys_dir / "default.key"
             default_key_path.write_bytes(default_key)
             print("Loaded default key from environment")
