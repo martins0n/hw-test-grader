@@ -25,11 +25,23 @@ logger = logging.getLogger(__name__)
 def load_courses_config() -> Optional[List[Dict]]:
     """
     Load courses configuration from environment or file.
+    Supports multiple formats:
+    1. COURSE_IDS env var: comma-separated list of course IDs
+    2. COURSES_CONFIG env var: JSON array
+    3. courses_config.json file: JSON array
 
     Returns:
         List of course configurations or None
     """
-    # Try to load from environment variable
+    # Try simple COURSE_IDS first (easiest)
+    course_ids_str = os.getenv('COURSE_IDS')
+    if course_ids_str:
+        course_ids = [cid.strip() for cid in course_ids_str.split(',') if cid.strip()]
+        if course_ids:
+            logger.info(f"Using COURSE_IDS from environment: {len(course_ids)} course(s)")
+            return [{"course_id": cid} for cid in course_ids]
+
+    # Try COURSES_CONFIG JSON
     config_json = os.getenv('COURSES_CONFIG')
     if config_json:
         try:

@@ -154,8 +154,37 @@ def main():
     except Exception as e:
         print(f"✗ Error exporting encryption keys: {e}")
 
-    # 4. COURSES_CONFIG (recommended - auto-discovers assignments)
-    print("\n\n4. COURSES_CONFIG (recommended)")
+    # 4. COURSE_IDS (simplest - just course IDs)
+    print("\n\n4. COURSE_IDS (simplest, recommended)")
+    print("-" * 80)
+
+    # Check .env file
+    env_path = Path(".env")
+    course_ids = None
+
+    if env_path.exists():
+        with open(env_path) as f:
+            for line in f:
+                if line.strip().startswith('COURSE_IDS='):
+                    course_ids = line.split('=', 1)[1].strip()
+                    break
+
+    if course_ids:
+        print("✓ Found COURSE_IDS in .env")
+        print(f"  Value: {course_ids}")
+        print("\nCopy this to GitHub Secret 'COURSE_IDS':")
+        print("\n" + "─" * 80)
+        print(course_ids)
+        print("─" * 80)
+        print("\nNote: This will auto-discover ALL assignments from these courses")
+    else:
+        print("✗ COURSE_IDS not found in .env")
+        print("  Add to .env: COURSE_IDS=123456789,987654321")
+        print("  (Comma-separated list of course IDs)")
+        print("  This is the simplest setup method!")
+
+    # 5. COURSES_CONFIG (alternative - with course names)
+    print("\n\n5. COURSES_CONFIG (alternative)")
     print("-" * 80)
     courses_path = Path("courses_config.json")
     if courses_path.exists():
@@ -171,11 +200,10 @@ def main():
             print(f"✗ Error reading courses_config.json: {e}")
     else:
         print("✗ courses_config.json not found")
-        print("  Run: python scripts/setup_courses.py")
-        print("  This will auto-discover assignments from selected courses")
+        print("  Not needed if using COURSE_IDS (recommended)")
 
-    # 5. ASSIGNMENTS_CONFIG (old format, backwards compatibility)
-    print("\n\n5. ASSIGNMENTS_CONFIG (alternative to COURSES_CONFIG)")
+    # 6. ASSIGNMENTS_CONFIG (old format, backwards compatibility)
+    print("\n\n6. ASSIGNMENTS_CONFIG (alternative, for specific assignments only)")
     print("-" * 80)
     assignments_path = Path("assignments_config.json")
     if assignments_path.exists():
@@ -204,9 +232,12 @@ def main():
     print("\nRequired secrets:")
     print("  - GOOGLE_CREDENTIALS")
     print("  - ENCRYPTION_KEYS (after processing first submission)")
+    print("  - COURSE_IDS (simplest: just comma-separated course IDs)")
     print("\nOptional but recommended:")
     print("  - GOOGLE_TOKEN (avoids re-authentication)")
-    print("  - ASSIGNMENTS_CONFIG (enables automatic downloads)")
+    print("\nAlternative to COURSE_IDS:")
+    print("  - COURSES_CONFIG (if you want to specify course names)")
+    print("  - ASSIGNMENTS_CONFIG (if you want specific assignments only)")
     print("\n" + "=" * 80)
 
     # Save to file for convenience

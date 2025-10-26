@@ -90,6 +90,7 @@ jobs:
         env:
           COURSE_ID: ${{ github.event.inputs.course_id }}
           COURSEWORK_ID: ${{ github.event.inputs.coursework_id }}
+          COURSE_IDS: ${{ secrets.COURSE_IDS }}
           COURSES_CONFIG: ${{ secrets.COURSES_CONFIG }}
           ASSIGNMENTS_CONFIG: ${{ secrets.ASSIGNMENTS_CONFIG }}
         run: |
