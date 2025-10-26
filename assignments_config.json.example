@@ -1,0 +1,17 @@
+[
+  {
+    "name": "Homework 1 - Introduction to Python",
+    "course_id": "123456789",
+    "coursework_id": "987654321"
+  },
+  {
+    "name": "Homework 2 - Data Structures",
+    "course_id": "123456789",
+    "coursework_id": "987654322"
+  },
+  {
+    "name": "Lab 1 - Numpy Basics",
+    "course_id": "123456790",
+    "coursework_id": "987654323"
+  }
+]

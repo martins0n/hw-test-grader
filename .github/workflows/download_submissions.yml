@@ -1,0 +1,84 @@
+name: Download Student Submissions
+
+on:
+  # Run on schedule (every hour)
+  schedule:
+    - cron: '0 * * * *'
+
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      course_id:
+        description: 'Course ID (optional - processes all if empty)'
+        required: false
+        type: string
+      coursework_id:
+        description: 'Coursework ID (optional - processes all if empty)'
+        required: false
+        type: string
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Set up Google Classroom credentials
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          GOOGLE_TOKEN: ${{ secrets.GOOGLE_TOKEN }}
+        run: |
+          echo "$GOOGLE_CREDENTIALS" > credentials.json
+          if [ ! -z "$GOOGLE_TOKEN" ]; then
+            echo "$GOOGLE_TOKEN" > token.json
+          fi
+
+      - name: Set up GitHub token
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPO: ${{ github.repository }}
+        run: |
+          echo "GITHUB_TOKEN=$GITHUB_TOKEN" >> .env
+          echo "GITHUB_REPO=$GITHUB_REPO" >> .env
+
+      - name: Download submissions
+        env:
+          COURSE_ID: ${{ github.event.inputs.course_id }}
+          COURSEWORK_ID: ${{ github.event.inputs.coursework_id }}
+          ASSIGNMENTS_CONFIG: ${{ secrets.ASSIGNMENTS_CONFIG }}
+        run: |
+          python scripts/download_submissions.py
+
+      - name: Save updated token
+        if: always()
+        run: |
+          if [ -f token.json ]; then
+            echo "Token file exists and may have been refreshed"
+            # Note: In production, you'd want to update the GitHub secret
+            # This requires additional setup with a separate workflow
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Download Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- Workflow completed at $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "- Check individual jobs for details" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f download_summary.txt ]; then
+            cat download_summary.txt >> $GITHUB_STEP_SUMMARY
+          fi

@@ -1,0 +1,88 @@
+name: Grade Homework Submission
+
+on:
+  push:
+    branches:
+      - 'student-*'
+
+jobs:
+  grade:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Extract student and assignment info
+        id: extract_info
+        run: |
+          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+
+          # Extract student ID and assignment ID from branch name
+          # Format: student-{student_id}/assignment-{assignment_id}
+          STUDENT_ID=$(echo $BRANCH_NAME | sed 's/student-\([^/]*\).*/\1/')
+          ASSIGNMENT_ID=$(echo $BRANCH_NAME | sed 's/.*assignment-\(.*\)/\1/')
+
+          echo "student_id=$STUDENT_ID" >> $GITHUB_OUTPUT
+          echo "assignment_id=$ASSIGNMENT_ID" >> $GITHUB_OUTPUT
+
+          echo "Processing submission for Student: $STUDENT_ID, Assignment: $ASSIGNMENT_ID"
+
+      - name: Decrypt submission files
+        env:
+          STUDENT_ID: ${{ steps.extract_info.outputs.student_id }}
+          ASSIGNMENT_ID: ${{ steps.extract_info.outputs.assignment_id }}
+          ENCRYPTION_KEYS: ${{ secrets.ENCRYPTION_KEYS }}
+        run: |
+          python scripts/decrypt_submission.py \
+            --student-id "$STUDENT_ID" \
+            --assignment-id "$ASSIGNMENT_ID"
+
+      - name: Run grading tests
+        id: grade
+        env:
+          STUDENT_ID: ${{ steps.extract_info.outputs.student_id }}
+          ASSIGNMENT_ID: ${{ steps.extract_info.outputs.assignment_id }}
+        run: |
+          python scripts/run_grader.py \
+            --student-id "$STUDENT_ID" \
+            --assignment-id "$ASSIGNMENT_ID" \
+            --output reports/grade_report.json
+
+      - name: Upload grading report
+        uses: actions/upload-artifact@v3
+        with:
+          name: grading-report-${{ steps.extract_info.outputs.student_id }}-${{ steps.extract_info.outputs.assignment_id }}
+          path: reports/grade_report.json
+
+      - name: Send results
+        if: always()
+        env:
+          STUDENT_ID: ${{ steps.extract_info.outputs.student_id }}
+          ASSIGNMENT_ID: ${{ steps.extract_info.outputs.assignment_id }}
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+        run: |
+          python scripts/send_results.py \
+            --student-id "$STUDENT_ID" \
+            --assignment-id "$ASSIGNMENT_ID" \
+            --report reports/grade_report.json
+
+      - name: Log completion
+        if: always()
+        run: |
+          echo "Grading completed for student ${{ steps.extract_info.outputs.student_id }}"
+          echo "Assignment: ${{ steps.extract_info.outputs.assignment_id }}"
+          echo "Status: ${{ job.status }}"
