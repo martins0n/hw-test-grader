@@ -19,6 +19,8 @@ SCOPES = [
     'https://www.googleapis.com/auth/classroom.courses.readonly',
     'https://www.googleapis.com/auth/classroom.coursework.students.readonly',
     'https://www.googleapis.com/auth/classroom.student-submissions.students.readonly',
+    'https://www.googleapis.com/auth/classroom.rosters.readonly',  # Required to get student emails
+    'https://www.googleapis.com/auth/classroom.profile.emails',  # Required to access email addresses
     'https://www.googleapis.com/auth/drive.readonly'
 ]
 
