@@ -44,7 +44,8 @@ jobs:
         run: |
           echo "$GOOGLE_CREDENTIALS" > credentials.json
           if [ ! -z "$GOOGLE_TOKEN" ]; then
-            echo "$GOOGLE_TOKEN" > token.json
+            # Decode base64-encoded token (binary file)
+            echo "$GOOGLE_TOKEN" | base64 -d > token.json
           fi
 
       - name: Set up GitHub token

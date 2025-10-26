@@ -49,3 +49,6 @@ reports/
 assignments_config.json
 download_summary.txt
 keys_backup.json
+github_secrets_export.txt
+
+client_secret*.json

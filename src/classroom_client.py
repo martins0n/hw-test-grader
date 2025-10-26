@@ -62,7 +62,14 @@ class ClassroomClient:
                 flow = InstalledAppFlow.from_client_secrets_file(
                     self.credentials_path, SCOPES
                 )
-                creds = flow.run_local_server(port=0)
+                # Disable strict scope validation to handle scope reordering
+                import os as _os
+                _os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'
+                try:
+                    creds = flow.run_local_server(port=0)
+                finally:
+                    # Clean up environment variable
+                    _os.environ.pop('OAUTHLIB_RELAX_TOKEN_SCOPE', None)
 
             # Save the credentials for the next run
             with open(self.token_path, 'wb') as token:

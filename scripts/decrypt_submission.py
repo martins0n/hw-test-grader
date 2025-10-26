@@ -16,11 +16,20 @@ from src.encryption import EncryptionManager
 
 def load_encryption_keys():
     """Load encryption keys from environment variable."""
+    import base64
+
     keys_json = os.getenv('ENCRYPTION_KEYS')
     if not keys_json:
         raise ValueError("ENCRYPTION_KEYS environment variable not set")
 
-    return json.loads(keys_json)
+    keys_data = json.loads(keys_json)
+
+    # Decode base64-encoded keys
+    decoded_keys = {}
+    for student_id, key_b64 in keys_data.items():
+        decoded_keys[student_id] = base64.b64decode(key_b64).decode('utf-8')
+
+    return decoded_keys
 
 
 def decrypt_submissions(student_id: str, assignment_id: str):
