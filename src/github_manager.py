@@ -2,6 +2,7 @@
 GitHub repository manager for storing encrypted student submissions.
 """
 import os
+import base64
 from pathlib import Path
 from typing import List, Optional
 from github import Github, Repository, GithubException
@@ -131,7 +132,9 @@ class GitHubManager:
             tree_elements = []
             for local_path, repo_path in files:
                 content = local_path.read_bytes()
-                blob = self.repo.create_git_blob(content.decode('latin-1'), "base64")
+                # Base64 encode binary content for GitHub API
+                content_b64 = base64.b64encode(content).decode('utf-8')
+                blob = self.repo.create_git_blob(content_b64, "base64")
                 tree_elements.append({
                     'path': repo_path,
                     'mode': '100644',
