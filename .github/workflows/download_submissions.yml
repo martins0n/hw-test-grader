@@ -42,10 +42,33 @@ jobs:
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           GOOGLE_TOKEN: ${{ secrets.GOOGLE_TOKEN }}
         run: |
-          echo "$GOOGLE_CREDENTIALS" > credentials.json
+          # Check if credentials secret is set
+          if [ -z "$GOOGLE_CREDENTIALS" ]; then
+            echo "Error: GOOGLE_CREDENTIALS secret is not set"
+            echo "Please add your credentials.json content to GitHub Secrets"
+            exit 1
+          fi
+
+          # Write credentials file (use printf to avoid adding newlines)
+          printf '%s' "$GOOGLE_CREDENTIALS" > credentials.json
+
+          # Validate JSON format
+          if ! python -m json.tool credentials.json > /dev/null 2>&1; then
+            echo "Error: credentials.json is not valid JSON"
+            echo "File size: $(wc -c < credentials.json) bytes"
+            echo "First 100 chars: $(head -c 100 credentials.json)"
+            exit 1
+          fi
+
+          echo "✓ credentials.json validated successfully"
+
+          # Set up token if provided
           if [ ! -z "$GOOGLE_TOKEN" ]; then
             # Decode base64-encoded token (binary file)
             echo "$GOOGLE_TOKEN" | base64 -d > token.json
+            echo "✓ token.json decoded successfully"
+          else
+            echo "Note: GOOGLE_TOKEN not set - authentication may require manual intervention"
           fi
 
       - name: Set up GitHub token
