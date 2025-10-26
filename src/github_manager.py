@@ -183,3 +183,52 @@ class GitHubManager:
         except GithubException:
             logger.warning(f"File {file_path} not found in {branch_name}")
             return None
+
+    def create_pull_request(
+        self,
+        branch_name: str,
+        title: str,
+        body: str,
+        base_branch: str = "main"
+    ) -> Optional[str]:
+        """
+        Create a pull request for a student submission.
+
+        Args:
+            branch_name: Source branch name
+            title: PR title
+            body: PR description
+            base_branch: Target branch (default: main)
+
+        Returns:
+            PR URL if successful, None otherwise
+        """
+        try:
+            # Check if PR already exists
+            existing_prs = self.repo.get_pulls(
+                state='open',
+                head=f"{self.repo.owner.login}:{branch_name}",
+                base=base_branch
+            )
+
+            if existing_prs.totalCount > 0:
+                pr = existing_prs[0]
+                logger.info(f"PR already exists: {pr.html_url}")
+                # Update PR body with new submission info
+                pr.edit(body=body)
+                return pr.html_url
+
+            # Create new PR
+            pr = self.repo.create_pull(
+                title=title,
+                body=body,
+                head=branch_name,
+                base=base_branch
+            )
+
+            logger.info(f"Created PR: {pr.html_url}")
+            return pr.html_url
+
+        except Exception as e:
+            logger.error(f"Failed to create PR: {e}")
+            return None

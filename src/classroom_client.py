@@ -179,7 +179,7 @@ class ClassroomClient:
             user_id: The ID of the student
 
         Returns:
-            Student information dictionary
+            Student information dictionary with email
         """
         try:
             student = self.service.courses().students().get(
@@ -190,3 +190,29 @@ class ClassroomClient:
         except Exception as e:
             logger.error(f"Error getting student info: {e}")
             return {}
+
+    def get_student_email(self, course_id: str, user_id: str) -> str:
+        """
+        Get student email address.
+
+        Args:
+            course_id: The ID of the course
+            user_id: The ID of the student
+
+        Returns:
+            Student email address or user_id if email not available
+        """
+        try:
+            student = self.get_student_info(course_id, user_id)
+            profile = student.get('profile', {})
+            email = profile.get('emailAddress', '')
+
+            if email:
+                # Clean email for use as identifier (remove @ and .)
+                return email.replace('@', '_at_').replace('.', '_')
+            else:
+                logger.warning(f"No email found for student {user_id}, using ID")
+                return user_id
+        except Exception as e:
+            logger.error(f"Error getting student email: {e}")
+            return user_id

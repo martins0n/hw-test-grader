@@ -1,13 +1,30 @@
 name: Grade Homework Submission
 
 on:
+  # Trigger on push to student branches
   push:
     branches:
       - 'student-*'
 
+  # Trigger on pull requests from student branches
+  pull_request:
+    branches:
+      - main
+      - master
+    types:
+      - opened
+      - synchronize
+      - reopened
+
 jobs:
   grade:
     runs-on: ubuntu-latest
+
+    # Grant permissions to write comments on PRs
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
 
     steps:
       - name: Checkout code
@@ -28,7 +45,13 @@ jobs:
       - name: Extract student and assignment info
         id: extract_info
         run: |
-          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          # Determine branch name from event type
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BRANCH_NAME="${{ github.head_ref }}"
+          else
+            BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          fi
+
           echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
 
           # Extract student ID and assignment ID from branch name
@@ -79,6 +102,53 @@ jobs:
             --student-id "$STUDENT_ID" \
             --assignment-id "$ASSIGNMENT_ID" \
             --report reports/grade_report.json
+
+      - name: Comment on PR with results
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const studentId = '${{ steps.extract_info.outputs.student_id }}';
+            const assignmentId = '${{ steps.extract_info.outputs.assignment_id }}';
+
+            let comment = '## 🤖 Grading Results\n\n';
+            comment += `**Student:** ${studentId}\n`;
+            comment += `**Assignment:** ${assignmentId}\n`;
+            comment += `**Status:** ${{ job.status }}\n\n`;
+
+            // Try to read the grading report
+            try {
+              const report = fs.readFileSync('reports/grade_report.json', 'utf8');
+              const results = JSON.parse(report);
+
+              if (results.error) {
+                comment += `### ❌ Error\n\`\`\`\n${results.error}\n\`\`\`\n`;
+              } else {
+                comment += `### Score: ${results.score.toFixed(2)}%\n\n`;
+                comment += `**Matches:** ${results.matches}/${results.total_expected}\n\n`;
+
+                if (results.mismatches && results.mismatches.length > 0) {
+                  comment += `**Mismatches:** ${results.mismatches.length}\n`;
+                }
+                if (results.missing && results.missing.length > 0) {
+                  comment += `**Missing outputs:** ${results.missing.length}\n`;
+                }
+              }
+            } catch (error) {
+              comment += '⚠️ Could not read grading report\n';
+            }
+
+            comment += '\n---\n';
+            comment += '📊 Full report available in workflow artifacts\n';
+
+            // Post comment
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
 
       - name: Log completion
         if: always()

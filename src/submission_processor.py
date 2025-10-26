@@ -80,9 +80,12 @@ class SubmissionProcessor:
             coursework_id: Assignment ID
             submission: Submission dictionary from Google Classroom
         """
-        student_id = submission['userId']
+        user_id = submission['userId']
         submission_id = submission['id']
         state = submission.get('state', 'UNKNOWN')
+
+        # Get student email for identification
+        student_id = self.classroom.get_student_email(course_id, user_id)
 
         logger.info(f"Processing submission {submission_id} from student {student_id} (state: {state})")
 
@@ -113,17 +116,26 @@ class SubmissionProcessor:
             logger.warning(f"No files downloaded for submission {submission_id}")
             return
 
-        # Encrypt and upload to GitHub
-        self._encrypt_and_upload(student_id, coursework_id, downloaded_files)
+        # Encrypt and upload to GitHub, and create PR
+        self._encrypt_and_upload(student_id, coursework_id, downloaded_files, course_id, submission)
 
-    def _encrypt_and_upload(self, student_id: str, assignment_id: str, files: List[Path]):
+    def _encrypt_and_upload(
+        self,
+        student_id: str,
+        assignment_id: str,
+        files: List[Path],
+        course_id: str = None,
+        submission: Dict = None
+    ):
         """
-        Encrypt files and upload to GitHub.
+        Encrypt files and upload to GitHub, then create PR.
 
         Args:
-            student_id: Student ID
+            student_id: Student ID (email-based)
             assignment_id: Assignment ID
             files: List of file paths to encrypt and upload
+            course_id: Course ID (for getting coursework title)
+            submission: Submission dict (for PR metadata)
         """
         # Create branch
         branch_name = self.github.get_or_create_branch(student_id, assignment_id)
@@ -171,6 +183,41 @@ class SubmissionProcessor:
 
             if success:
                 logger.info(f"Successfully uploaded {len(files_to_commit)} encrypted files to GitHub")
+
+                # Create Pull Request
+                pr_title = f"Submission: {student_id} - Assignment {assignment_id}"
+
+                # Build PR body
+                pr_body = f"## Student Submission\n\n"
+                pr_body += f"**Student:** {student_id}\n"
+                pr_body += f"**Assignment:** {assignment_id}\n"
+                pr_body += f"**Submitted:** {timestamp}\n"
+                pr_body += f"**Files:** {len(files_to_commit)}\n\n"
+
+                if submission:
+                    state = submission.get('state', 'UNKNOWN')
+                    pr_body += f"**State:** {state}\n"
+
+                pr_body += f"\n### Files Submitted\n"
+                for _, repo_path in files_to_commit:
+                    filename = repo_path.split('/')[-1].replace('.enc', '')
+                    pr_body += f"- {filename}\n"
+
+                pr_body += f"\n---\n"
+                pr_body += f"🤖 Automated submission from Google Classroom\n"
+                pr_body += f"✅ Grading workflow will run automatically\n"
+
+                pr_url = self.github.create_pull_request(
+                    branch_name=branch_name,
+                    title=pr_title,
+                    body=pr_body
+                )
+
+                if pr_url:
+                    logger.info(f"Created PR: {pr_url}")
+                else:
+                    logger.warning("Failed to create PR, but files were uploaded")
+
             else:
                 logger.error("Failed to upload files to GitHub")
 
