@@ -158,6 +158,9 @@ class GitHubManager:
 
         except Exception as e:
             logger.error(f"Failed to commit multiple files: {e}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return False
 
     def get_file_content(self, file_path: str, branch_name: str) -> Optional[bytes]:

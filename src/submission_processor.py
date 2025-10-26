@@ -145,11 +145,29 @@ class SubmissionProcessor:
             timestamp = datetime.now().isoformat()
             commit_message = f"Submission for {assignment_id} by student {student_id} at {timestamp}"
 
+            # Try batch commit first
             success = self.github.commit_multiple_files(
                 files_to_commit,
                 branch_name,
                 commit_message
             )
+
+            if not success:
+                logger.warning("Batch commit failed, falling back to individual file commits")
+                # Fallback: commit files individually
+                success_count = 0
+                for encrypted_path, repo_path in files_to_commit:
+                    if self.github.commit_file(encrypted_path, repo_path, branch_name, commit_message):
+                        success_count += 1
+                    else:
+                        logger.error(f"Failed to commit {repo_path}")
+
+                if success_count > 0:
+                    logger.info(f"Successfully uploaded {success_count}/{len(files_to_commit)} encrypted files to GitHub")
+                    success = True
+                else:
+                    logger.error("Failed to upload any files to GitHub")
+                    success = False
 
             if success:
                 logger.info(f"Successfully uploaded {len(files_to_commit)} encrypted files to GitHub")
