@@ -28,12 +28,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 2
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -86,7 +86,7 @@ jobs:
             --output reports/grade_report.json
 
       - name: Upload grading report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: grading-report-${{ steps.extract_info.outputs.student_id }}-${{ steps.extract_info.outputs.assignment_id }}
           path: reports/grade_report.json
