@@ -68,7 +68,13 @@ class EncryptionManager:
         if len(key_candidate) in (16, 24, 32):
             return key_candidate
 
-        raise ValueError("Key material must be 16, 24, or 32 bytes (or base64-encoded)")
+        # As a final fallback, derive a deterministic AES key from the provided material
+        derived = hashlib.blake2s(key_candidate, digest_size=32).digest()
+        logger.warning(
+            "Provided key material length %d is unsupported; using BLAKE2s-derived key",
+            len(key_candidate)
+        )
+        return derived
 
     def _load_key_from_file(self, key_path: Path) -> bytes:
         raw = key_path.read_bytes()
