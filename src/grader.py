@@ -1,12 +1,13 @@
-"""
-Grader for Jupyter notebooks with JSON output comparison.
-"""
+"""Grader for Jupyter notebooks with JSON output comparison."""
 import json
-import nbformat
-from nbconvert.preprocessors import ExecutePreprocessor
+import logging
+import os
 from pathlib import Path
 from typing import Dict, List, Optional, Any
-import logging
+
+import nbformat
+from nbconvert.preprocessors import ExecutePreprocessor
+from jupyter_client.kernelspec import NoSuchKernel
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,32 @@ class NotebookGrader:
             timeout: Timeout in seconds for executing each notebook
         """
         self.timeout = timeout
-        self.executor = ExecutePreprocessor(timeout=timeout, kernel_name='python3')
+        self.kernel_name = os.getenv('NB_KERNEL_NAME', 'python3')
+        self.executor = self._create_executor()
+
+    def _create_executor(self) -> ExecutePreprocessor:
+        """Create an ExecutePreprocessor, installing the kernel if missing."""
+        try:
+            return ExecutePreprocessor(timeout=self.timeout, kernel_name=self.kernel_name)
+        except NoSuchKernel:
+            logger.warning(
+                "Kernel '%s' not found. Attempting to install ipykernel...",
+                self.kernel_name,
+            )
+            self._install_kernel_spec()
+            return ExecutePreprocessor(timeout=self.timeout, kernel_name=self.kernel_name)
+
+    def _install_kernel_spec(self):
+        """Install the default ipykernel so notebooks can execute."""
+        try:
+            from ipykernel.kernelspec import install as install_kernel
+        except ImportError as exc:
+            raise RuntimeError(
+                "ipykernel is not installed; cannot provision a Python kernel"
+            ) from exc
+
+        install_kernel(user=True)
+        logger.info("Registered ipykernel for kernel name '%s'", self.kernel_name)
 
     def execute_notebook(self, notebook_path: Path) -> Optional[nbformat.NotebookNode]:
         """
@@ -42,6 +68,11 @@ class NotebookGrader:
             logger.info(f"Successfully executed {notebook_path.name}")
             return nb
 
+        except NoSuchKernel:
+            # Kernel missing at execution time (e.g. removed after init)
+            logger.warning("Kernel '%s' missing during execution; reinstalling", self.kernel_name)
+            self.executor = self._create_executor()
+            return self.execute_notebook(notebook_path)
         except Exception as e:
             logger.error(f"Failed to execute {notebook_path.name}: {e}")
             return None
