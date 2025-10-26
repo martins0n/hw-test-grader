@@ -5,7 +5,7 @@ import os
 import base64
 from pathlib import Path
 from typing import List, Optional
-from github import Github, Repository, GithubException
+from github import Github, Repository, GithubException, InputGitTreeElement
 import logging
 
 logger = logging.getLogger(__name__)
@@ -135,12 +135,15 @@ class GitHubManager:
                 # Base64 encode binary content for GitHub API
                 content_b64 = base64.b64encode(content).decode('utf-8')
                 blob = self.repo.create_git_blob(content_b64, "base64")
-                tree_elements.append({
-                    'path': repo_path,
-                    'mode': '100644',
-                    'type': 'blob',
-                    'sha': blob.sha
-                })
+
+                # Create proper InputGitTreeElement object
+                element = InputGitTreeElement(
+                    path=repo_path,
+                    mode='100644',
+                    type='blob',
+                    sha=blob.sha
+                )
+                tree_elements.append(element)
 
             # Create tree
             tree = self.repo.create_git_tree(tree_elements, base_tree)
