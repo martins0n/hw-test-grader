@@ -134,7 +134,8 @@ class NotebookGrader:
             'mismatches': [],
             'missing': [],
             'extra': [],
-            'score': 0.0
+            'score': 0.0,
+            'passed': False,
         }
 
         # Compare each expected output
@@ -163,6 +164,13 @@ class NotebookGrader:
             result['score'] = (result['matches'] / result['total_expected']) * 100
         else:
             result['score'] = 0.0
+
+        result['passed'] = (
+            result['matches'] == result['total_expected']
+            and not result['mismatches']
+            and not result['missing']
+            and not result['extra']
+        )
 
         return result
 
@@ -216,7 +224,8 @@ class NotebookGrader:
         if executed_nb is None:
             return {
                 'error': 'Failed to execute notebook',
-                'score': 0.0
+                'score': 0.0,
+                'passed': False,
             }
 
         # Extract JSON outputs
@@ -233,7 +242,8 @@ class NotebookGrader:
         elif expected_outputs is None:
             return {
                 'error': 'No expected outputs provided',
-                'student_outputs': student_outputs
+                'student_outputs': student_outputs,
+                'passed': False,
             }
 
         # Compare outputs
