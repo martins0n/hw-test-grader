@@ -152,9 +152,23 @@ class GitHubManager:
             parent = self.repo.get_git_commit(branch.commit.sha)
             commit = self.repo.create_git_commit(commit_message, tree, [parent])
 
-            # Update branch reference
-            ref = self.repo.get_git_ref(f"heads/{branch_name}")
-            ref.edit(commit.sha)
+            # Update branch reference using the proper method
+            ref_name = f"refs/heads/{branch_name}"
+            try:
+                # Try to update using the refs API directly
+                ref = self.repo.get_git_ref(f"heads/{branch_name}")
+                # Force update by setting sha and force=True
+                ref.edit(sha=commit.sha, force=False)
+            except Exception as e:
+                # Fallback: update using low-level API
+                logger.warning(f"Standard ref update failed: {e}, trying alternative method")
+                # Use the update_ref method from the GitHub API
+                url = f"{self.repo.url}/git/refs/heads/{branch_name}"
+                headers, data = self.repo._requester.requestJsonAndCheck(
+                    "PATCH",
+                    url,
+                    input={"sha": commit.sha, "force": False}
+                )
 
             logger.info(f"Committed {len(files)} files to {branch_name}")
             return True
