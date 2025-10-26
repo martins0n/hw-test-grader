@@ -189,7 +189,7 @@ class SubmissionProcessor:
         files_to_commit = []
         for file_path in files:
             # Encrypt file
-            encrypted_path = self.encrypted_dir / student_id / assignment_id / f"{file_path.name}.enc"
+            encrypted_path = self.encrypted_dir / student_id / assignment_name / f"{file_path.name}.enc"
             success = self.encryption.encrypt_file(file_path, encrypted_path, student_id)
 
             if success:
