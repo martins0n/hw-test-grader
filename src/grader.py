@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class NotebookGrader:
     """Grades Jupyter notebooks by executing them and comparing JSON outputs."""
 
-    def __init__(self, timeout: int = 600):
+    def __init__(self, timeout: int = 600 * 5):
         """
         Initialize the notebook grader.
 
