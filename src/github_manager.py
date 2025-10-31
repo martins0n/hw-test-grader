@@ -56,6 +56,45 @@ class GitHubManager:
 
         return branch_name
 
+    def rebase_branch(self, branch_name: str, base_branch: str = "main") -> bool:
+        """
+        Rebase a branch onto the base branch.
+
+        Args:
+            branch_name: Branch to rebase
+            base_branch: Base branch to rebase onto (default: main)
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Get the base branch
+            try:
+                base = self.repo.get_branch(base_branch)
+            except GithubException:
+                base = self.repo.get_branch("master")
+                base_branch = "master"
+
+            # Get the current branch
+            branch = self.repo.get_branch(branch_name)
+
+            # Check if already up to date
+            if branch.commit.sha == base.commit.sha:
+                logger.info(f"Branch {branch_name} is already up to date with {base_branch}")
+                return True
+
+            # Update the branch reference to point to the base branch commit
+            # This effectively rebases by fast-forwarding
+            ref = self.repo.get_git_ref(f"heads/{branch_name}")
+            ref.edit(sha=base.commit.sha, force=False)
+
+            logger.info(f"Rebased {branch_name} onto {base_branch}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to rebase {branch_name}: {e}")
+            return False
+
     def commit_file(
         self,
         file_path: Path,
