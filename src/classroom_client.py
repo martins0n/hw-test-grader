@@ -19,6 +19,8 @@ SCOPES = [
     'https://www.googleapis.com/auth/classroom.courses.readonly',
     'https://www.googleapis.com/auth/classroom.coursework.students.readonly',
     'https://www.googleapis.com/auth/classroom.student-submissions.students.readonly',
+    'https://www.googleapis.com/auth/classroom.student-submissions.me.readonly',
+    'https://www.googleapis.com/auth/classroom.coursework.students',  # Required to submit grades
     'https://www.googleapis.com/auth/classroom.rosters.readonly',  # Required to get student emails
     'https://www.googleapis.com/auth/classroom.profile.emails',  # Required to access email addresses
     'https://www.googleapis.com/auth/drive.readonly'
@@ -218,3 +220,98 @@ class ClassroomClient:
         except Exception as e:
             logger.error(f"Error getting student email: {e}")
             return user_id
+
+    def submit_grade(
+        self,
+        course_id: str,
+        coursework_id: str,
+        submission_id: str,
+        grade: float,
+        max_points: Optional[float] = None
+    ) -> bool:
+        """
+        Submit a draft grade for a student submission.
+
+        Note: This submits a draft grade that must be approved by the teacher.
+        The grade will not be final until the teacher reviews and approves it.
+
+        Args:
+            course_id: The ID of the course
+            coursework_id: The ID of the coursework/assignment
+            submission_id: The ID of the submission
+            grade: The grade to assign (must be <= max_points)
+            max_points: Maximum points for the assignment (optional, for validation)
+
+        Returns:
+            True if grade was submitted successfully, False otherwise
+        """
+        try:
+            # Validate grade
+            if max_points is not None and grade > max_points:
+                logger.warning(
+                    f"Grade {grade} exceeds max points {max_points}, capping at max"
+                )
+                grade = max_points
+
+            # Prepare the update body
+            body = {
+                'draftGrade': grade
+            }
+
+            # Update the submission with draft grade
+            result = self.service.courses().courseWork().studentSubmissions().patch(
+                courseId=course_id,
+                courseWorkId=coursework_id,
+                id=submission_id,
+                updateMask='draftGrade',
+                body=body
+            ).execute()
+
+            logger.info(
+                f"Submitted draft grade {grade} for submission {submission_id} "
+                f"(course: {course_id}, coursework: {coursework_id})"
+            )
+            return True
+
+        except Exception as e:
+            logger.error(f"Error submitting grade: {e}")
+            return False
+
+    def find_submission_for_student(
+        self,
+        course_id: str,
+        coursework_id: str,
+        student_email: str
+    ) -> Optional[str]:
+        """
+        Find a submission ID for a specific student by email.
+
+        Args:
+            course_id: The ID of the course
+            coursework_id: The ID of the coursework/assignment
+            student_email: The student's email address
+
+        Returns:
+            Submission ID if found, None otherwise
+        """
+        try:
+            submissions = self.get_submissions(course_id, coursework_id)
+
+            for submission in submissions:
+                user_id = submission.get('userId')
+                student_info = self.get_student_info(course_id, user_id)
+                profile = student_info.get('profile', {})
+                email = profile.get('emailAddress', '')
+
+                if email.lower() == student_email.lower():
+                    return submission.get('id')
+
+            logger.warning(
+                f"No submission found for student {student_email} "
+                f"in course {course_id}, coursework {coursework_id}"
+            )
+            return None
+
+        except Exception as e:
+            logger.error(f"Error finding submission: {e}")
+            return None

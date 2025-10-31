@@ -97,7 +97,9 @@ def grade_submission(student_id: str, assignment_id: str, output_path: str):
     if result.get("error"):
         raise RuntimeError(result["error"])
 
-    if result.get("passed") is False:
+    # For enhanced test cases format (points-based), don't fail on partial scores
+    if 'test_case_results' not in result and result.get("passed") is False:
+        # Legacy format: fail if not passed
         mismatches = len(result.get("mismatches", []))
         missing = len(result.get("missing", []))
         extra = len(result.get("extra", []))
@@ -106,6 +108,10 @@ def grade_submission(student_id: str, assignment_id: str, output_path: str):
             f"(matches {result.get('matches', 0)}/{result.get('total_expected', 0)}, "
             f"mismatches={mismatches}, missing={missing}, extra={extra})"
         )
+
+    # Enhanced format: return earned points (workflow succeeds even with partial scores)
+    if 'test_case_results' in result:
+        return result.get("earned_points", 0.0)
 
     return result.get("score", 0.0)
 
