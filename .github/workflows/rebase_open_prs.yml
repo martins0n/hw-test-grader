@@ -36,7 +36,8 @@ jobs:
 
       - name: Rebase open student PRs
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Use PAT_TOKEN instead of GITHUB_TOKEN to trigger workflows on updated branches
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           python - <<'EOF'
@@ -130,4 +131,28 @@ jobs:
           print(f"  Skipped (up to date): {skipped_count}")
           print(f"  Failed: {failed_count}")
           print(f"{'='*60}")
+
+          # Check if PAT was used
+          if os.environ['GITHUB_TOKEN'] == os.environ.get('GITHUB_TOKEN'):
+              print(f"\nNote: Using default GITHUB_TOKEN")
+              print(f"This will NOT trigger grade workflows on updated branches.")
+              print(f"To trigger workflows, add a PAT_TOKEN secret with workflow permissions.")
           EOF
+
+      - name: Check token type
+        run: |
+          if [ "${{ secrets.PAT_TOKEN }}" = "" ]; then
+            echo "⚠️  WARNING: PAT_TOKEN not configured!"
+            echo ""
+            echo "The rebase succeeded, but grade workflows will NOT run automatically."
+            echo "Using GITHUB_TOKEN prevents triggering other workflows."
+            echo ""
+            echo "To fix this:"
+            echo "1. Create a Personal Access Token with 'repo' and 'workflow' scopes"
+            echo "2. Add it as a secret named PAT_TOKEN"
+            echo "3. Re-run this workflow"
+            echo ""
+            echo "See: https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token"
+          else
+            echo "✓ Using PAT_TOKEN - workflows will be triggered on updated branches"
+          fi
