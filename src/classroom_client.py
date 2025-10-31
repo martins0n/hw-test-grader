@@ -58,13 +58,29 @@ class ClassroomClient:
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
             else:
-                if not os.path.exists(self.credentials_path):
+                # Check if credentials are in environment variable first
+                credentials_json = os.getenv('GOOGLE_CREDENTIALS')
+                temp_credentials_file = None
+
+                if credentials_json and not os.path.exists(self.credentials_path):
+                    # Write credentials from environment to temporary file
+                    import tempfile
+                    temp_credentials_file = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json')
+                    temp_credentials_file.write(credentials_json)
+                    temp_credentials_file.close()
+                    credentials_file = temp_credentials_file.name
+                    logger.info("Using credentials from GOOGLE_CREDENTIALS environment variable")
+                else:
+                    credentials_file = self.credentials_path
+
+                if not os.path.exists(credentials_file):
                     raise FileNotFoundError(
                         f"Credentials file not found at {self.credentials_path}. "
                         "Please follow the setup instructions in README.md"
                     )
+
                 flow = InstalledAppFlow.from_client_secrets_file(
-                    self.credentials_path, SCOPES
+                    credentials_file, SCOPES
                 )
                 # Disable strict scope validation to handle scope reordering
                 import os as _os
@@ -74,6 +90,12 @@ class ClassroomClient:
                 finally:
                     # Clean up environment variable
                     _os.environ.pop('OAUTHLIB_RELAX_TOKEN_SCOPE', None)
+                    # Clean up temporary credentials file
+                    if temp_credentials_file:
+                        try:
+                            os.remove(temp_credentials_file.name)
+                        except:
+                            pass
 
             # Save the credentials for the next run
             with open(self.token_path, 'wb') as token:
