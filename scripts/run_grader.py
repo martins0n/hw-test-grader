@@ -34,7 +34,8 @@ def grade_submission(student_id: str, assignment_id: str, output_path: str):
             "error": "No Jupyter notebooks found in submission",
             "student_id": student_id,
             "assignment_id": assignment_id,
-            "score": 0.0
+            "score": 0.0,
+            "passed": False,
         }
     else:
         # Grade the first notebook found (or you can modify to grade all)
@@ -59,14 +60,16 @@ def grade_submission(student_id: str, assignment_id: str, output_path: str):
                     "assignment_id": assignment_id,
                     "notebook": str(notebook_path),
                     "student_outputs": student_outputs,
-                    "note": "No expected outputs available for comparison"
+                    "note": "No expected outputs available for comparison",
+                    "passed": True,
                 }
             else:
                 result = {
                     "error": "Failed to execute notebook",
                     "student_id": student_id,
                     "assignment_id": assignment_id,
-                    "score": 0.0
+                    "score": 0.0,
+                    "passed": False,
                 }
         else:
             # Grade with expected outputs
@@ -90,6 +93,25 @@ def grade_submission(student_id: str, assignment_id: str, output_path: str):
         print(grader.generate_report(result))
 
     print(f"\nReport saved to: {output_path}")
+
+    if result.get("error"):
+        raise RuntimeError(result["error"])
+
+    # For enhanced test cases format (points-based), don't fail on partial scores
+    if 'test_case_results' not in result and result.get("passed") is False:
+        # Legacy format: fail if not passed
+        mismatches = len(result.get("mismatches", []))
+        missing = len(result.get("missing", []))
+        extra = len(result.get("extra", []))
+        raise RuntimeError(
+            "Notebook outputs do not match expected JSON "
+            f"(matches {result.get('matches', 0)}/{result.get('total_expected', 0)}, "
+            f"mismatches={mismatches}, missing={missing}, extra={extra})"
+        )
+
+    # Enhanced format: return earned points (workflow succeeds even with partial scores)
+    if 'test_case_results' in result:
+        return result.get("earned_points", 0.0)
 
     return result.get("score", 0.0)
 

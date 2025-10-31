@@ -9,11 +9,14 @@ Each assignment should have its own directory named using the **sanitized assign
 ```
 test_cases/
 ├── homework-1-variables/
-│   └── expected_output.json
+│   ├── expected_output.json
+│   └── requirements.txt (optional)
 ├── lab-2-functions/
-│   └── expected_output.json
+│   ├── expected_output.json
+│   └── requirements.txt (optional)
 └── final-project/
-    └── expected_output.json
+    ├── expected_output.json
+    └── requirements.txt (optional)
 ```
 
 ## Assignment Name Format
@@ -80,6 +83,8 @@ nano test_cases/homework-1-variables/expected_output.json
 
 ### 3. Define expected JSON outputs
 
+#### Legacy Format (Simple output comparison)
+
 The grader expects a JSON array of expected outputs:
 
 ```json
@@ -96,6 +101,104 @@ The grader expects a JSON array of expected outputs:
 ```
 
 Each item in the array corresponds to one JSON output from the notebook.
+
+#### Enhanced Format (Per-case grading with points and tolerance)
+
+For more advanced grading with per-case points and numerical tolerance:
+
+```json
+{
+  "test_cases": [
+    {
+      "name": "Basic arithmetic operations",
+      "points": 10,
+      "expected": {
+        "sum": 15,
+        "product": 50
+      }
+    },
+    {
+      "name": "Numerical comparison with tolerance",
+      "points": 15,
+      "tolerance": 0.01,
+      "expected": {
+        "pi": 3.14159,
+        "e": 2.71828
+      }
+    }
+  ]
+}
+```
+
+**Enhanced Format Fields:**
+- `test_cases`: Array of test case objects
+- `name`: Descriptive name for the test case
+- `points`: Points awarded for passing this test case
+- `expected`: The expected output (JSON object or value)
+- `tolerance`: (Optional) Relative tolerance for numerical comparisons (e.g., 0.01 = 1%)
+- `compare`: (Optional) Comparison operator: `<`, `<=`, `>`, `>=`, `==` (default), `!=`
+- `compare_fields`: (Optional) Dict mapping field names to comparison operators
+- `tolerance_fields`: (Optional) Dict mapping field names to tolerance values
+
+#### Comparison Operators
+
+Use comparison operators for threshold-based grading (performance metrics, quality checks, etc.):
+
+```json
+{
+  "test_cases": [
+    {
+      "name": "Execution time should be under 5 seconds",
+      "points": 20,
+      "expected": 5.0,
+      "compare": "<"
+    },
+    {
+      "name": "Accuracy must be at least 95%",
+      "points": 25,
+      "expected": 0.95,
+      "compare": ">="
+    },
+    {
+      "name": "Performance metrics with mixed comparisons",
+      "points": 30,
+      "expected": {
+        "execution_time": 10.0,
+        "memory_usage": 100,
+        "accuracy": 0.9
+      },
+      "compare_fields": {
+        "execution_time": "<",
+        "memory_usage": "<=",
+        "accuracy": ">="
+      }
+    }
+  ]
+}
+```
+
+**Use cases for comparison operators:**
+- Performance: execution time `<` threshold
+- Quality: accuracy `>=` minimum acceptable
+- Resource limits: memory usage `<=` limit
+- Error rates: error `<` maximum tolerable
+
+### 4. (Optional) Add custom requirements.txt
+
+If your assignment requires specific Python packages, create a `requirements.txt`:
+
+```bash
+nano test_cases/homework-1-variables/requirements.txt
+```
+
+Example content:
+```
+numpy==1.24.0
+pandas==2.0.0
+matplotlib>=3.7.0
+```
+
+These will be installed in addition to the base project requirements.
 
 ## Student Notebook Format
 
@@ -122,10 +225,19 @@ print(json.dumps(output))
 
 ## Grading Process
 
+### Legacy Format
 1. Student notebook is executed
 2. JSON outputs are extracted from cell outputs
 3. Each output is compared with expected_output.json
 4. Score = (matches / total_expected) * 100%
+
+### Enhanced Format
+1. Student notebook is executed
+2. JSON outputs are extracted from cell outputs
+3. Each test case is evaluated independently
+4. Numerical values are compared with tolerance if specified
+5. Score = sum of earned points from all test cases
+6. **CI fails if ANY test case fails**
 
 ## Example Test Case
 

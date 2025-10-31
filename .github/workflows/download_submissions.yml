@@ -99,6 +99,7 @@ jobs:
           COURSE_IDS: ${{ secrets.COURSE_IDS }}
           COURSES_CONFIG: ${{ secrets.COURSES_CONFIG }}
           ASSIGNMENTS_CONFIG: ${{ secrets.ASSIGNMENTS_CONFIG }}
+          DEFAULT_ENCRYPTION_KEY: ${{ secrets.DEFAULT_ENCRYPTION_KEY }}
           USE_DEFAULT_ENCRYPTION_KEY: ${{ secrets.USE_DEFAULT_ENCRYPTION_KEY || 'true' }}
         run: |
           python scripts/download_submissions.py

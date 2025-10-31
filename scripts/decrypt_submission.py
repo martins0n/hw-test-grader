@@ -63,7 +63,13 @@ def decrypt_submissions(student_id: str, assignment_id: str):
         default_key_b64 = os.getenv('DEFAULT_ENCRYPTION_KEY')
         if default_key_b64:
             import base64
+            # Strip any whitespace that might have been added
+            default_key_b64 = default_key_b64.strip()
+
+
             default_key = base64.b64decode(default_key_b64)
+
+
             default_key_path = keys_dir / "default.key"
             default_key_path.write_bytes(default_key)
             print("Loaded default key from environment")
@@ -98,21 +104,14 @@ def decrypt_submissions(student_id: str, assignment_id: str):
         decrypted_path = decrypted_dir / decrypted_name
 
         try:
-            # Get the key
+            # Display debug information
             key = encryption_manager.get_or_create_key(student_id)
-            from cryptography.fernet import Fernet
-            fernet = Fernet(key)
-
-            # Decrypt
             encrypted_data = encrypted_file.read_bytes()
             print(f"Encrypted file size: {len(encrypted_data)} bytes")
             print(f"Key length: {len(key)} bytes")
 
-            plaintext = fernet.decrypt(encrypted_data)
-
-            # Save decrypted file
-            decrypted_path.parent.mkdir(parents=True, exist_ok=True)
-            decrypted_path.write_bytes(plaintext)
+            if not encryption_manager.decrypt_file(encrypted_file, decrypted_path, student_id):
+                raise RuntimeError("Manager reported decryption failure")
 
             print(f"✓ Decrypted: {decrypted_name}")
         except Exception as e:
