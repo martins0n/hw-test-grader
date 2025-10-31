@@ -133,6 +133,9 @@ jobs:
           STUDENT_ID: ${{ steps.extract_info.outputs.student_id }}
           ASSIGNMENT_ID: ${{ steps.extract_info.outputs.assignment_id }}
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           python scripts/send_results.py \
             --student-id "$STUDENT_ID" \
