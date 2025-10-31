@@ -307,7 +307,7 @@ class NotebookGrader:
             'total_points': sum(tc.get('points', 0) for tc in test_cases),
             'earned_points': 0,
             'test_case_results': [],
-            'passed': True,  # Will be set to False if any case fails
+            'passed': True,  # Points-based grading always "passes" - score is what matters
         }
 
         for i, test_case in enumerate(test_cases):
@@ -341,7 +341,6 @@ class NotebookGrader:
                         case_result['expected'] = f'{compare} {expected}'
                         case_result['received'] = student_output
                         result['failed_cases'] += 1
-                        result['passed'] = False
 
                 # Handle object/array comparisons with field-level operators
                 elif isinstance(expected, dict) and 'compare' in test_case:
@@ -373,7 +372,6 @@ class NotebookGrader:
                         case_result['expected'] = expected
                         case_result['received'] = student_output
                         result['failed_cases'] += 1
-                        result['passed'] = False
 
                 # Default: exact match comparison
                 else:
@@ -387,12 +385,10 @@ class NotebookGrader:
                         case_result['expected'] = expected
                         case_result['received'] = student_output
                         result['failed_cases'] += 1
-                        result['passed'] = False
             else:
                 case_result['error'] = 'Missing output'
                 case_result['expected'] = expected
                 result['failed_cases'] += 1
-                result['passed'] = False
 
             result['test_case_results'].append(case_result)
 
