@@ -1,0 +1,133 @@
+name: Rebase Open PRs
+
+on:
+  # Run when main/master branch is updated
+  push:
+    branches:
+      - main
+      - master
+
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  rebase:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install PyGithub
+
+      - name: Rebase open student PRs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          python - <<'EOF'
+          import os
+          from github import Github
+
+          # Initialize GitHub client
+          token = os.environ['GITHUB_TOKEN']
+          repo_name = os.environ['GITHUB_REPOSITORY']
+          g = Github(token)
+          repo = g.get_repo(repo_name)
+
+          # Get the base branch that was just updated
+          base_branch = os.environ.get('GITHUB_REF_NAME', 'main')
+          print(f"Base branch '{base_branch}' was updated, checking for student PRs to rebase...")
+
+          # Get all open PRs targeting this base branch
+          open_prs = repo.get_pulls(state='open', base=base_branch)
+
+          rebased_count = 0
+          skipped_count = 0
+          failed_count = 0
+
+          for pr in open_prs:
+              # Only rebase student PRs (those with student- prefix)
+              if not pr.head.ref.startswith('student-'):
+                  print(f"Skipping non-student PR: {pr.title}")
+                  continue
+
+              branch_name = pr.head.ref
+              print(f"\nChecking PR #{pr.number}: {pr.title}")
+              print(f"  Branch: {branch_name}")
+
+              try:
+                  # Get the base branch latest commit
+                  base = repo.get_branch(base_branch)
+                  base_sha = base.commit.sha
+
+                  # Get the PR branch
+                  branch = repo.get_branch(branch_name)
+                  branch_sha = branch.commit.sha
+
+                  # Check if branch is behind base
+                  comparison = repo.compare(base_sha, branch_sha)
+
+                  if comparison.behind_by == 0:
+                      print(f"  ✓ Already up to date")
+                      skipped_count += 1
+                      continue
+
+                  print(f"  Branch is {comparison.behind_by} commit(s) behind {base_branch}")
+                  print(f"  Rebasing {branch_name} onto {base_branch}...")
+
+                  # Rebase by updating the branch reference to base commit
+                  # Note: This is a fast-forward "rebase" - actual git rebase would require checkout
+                  ref = repo.get_git_ref(f"heads/{branch_name}")
+
+                  # For true rebase, we'd need the student's commits on top of base
+                  # For simplicity, we'll merge base into the branch instead
+                  # Get commits unique to the student branch
+                  student_commits = list(repo.compare(base_sha, branch_sha).commits)
+
+                  if len(student_commits) == 0:
+                      # No student commits, just fast-forward
+                      ref.edit(sha=base_sha, force=False)
+                      print(f"  ✓ Fast-forwarded to {base_branch}")
+                      rebased_count += 1
+                  else:
+                      # Student has commits - need to merge base into branch
+                      # This is safer than rebasing as it won't rewrite history
+                      try:
+                          merge_result = repo.merge(
+                              branch_name,
+                              base_sha,
+                              f"Merge {base_branch} into {branch_name}"
+                          )
+                          print(f"  ✓ Merged {base_branch} into {branch_name}")
+                          rebased_count += 1
+                      except Exception as merge_error:
+                          print(f"  ✗ Merge failed (likely conflicts): {merge_error}")
+                          print(f"  Student needs to manually update branch")
+                          failed_count += 1
+
+              except Exception as e:
+                  print(f"  ✗ Failed to rebase: {e}")
+                  failed_count += 1
+
+          print(f"\n{'='*60}")
+          print(f"Summary:")
+          print(f"  Rebased: {rebased_count}")
+          print(f"  Skipped (up to date): {skipped_count}")
+          print(f"  Failed: {failed_count}")
+          print(f"{'='*60}")
+          EOF

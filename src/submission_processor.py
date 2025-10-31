@@ -189,7 +189,15 @@ class SubmissionProcessor:
         branch_name = self.github.get_or_create_branch(student_id, assignment_name)
 
         # Encrypt and prepare files
+        timestamp = datetime.now().isoformat()
+        commit_message = (
+            f"Submission sync for {assignment_title or assignment_name} "
+            f"by student {student_id} at {timestamp}"
+        )
+
         files_to_commit = []
+        repo_paths = set()
+        encryption_failed = False
         for file_path in files:
             # Encrypt file
             encrypted_path = self.encrypted_dir / student_id / assignment_name / f"{file_path.name}.enc"
@@ -199,75 +207,133 @@ class SubmissionProcessor:
                 # Prepare for GitHub commit
                 repo_path = f"submissions/{student_id}/{assignment_name}/{file_path.name}.enc"
                 files_to_commit.append((encrypted_path, repo_path))
+                repo_paths.add(repo_path)
+            else:
+                encryption_failed = True
 
-        # Commit to GitHub
-        if files_to_commit:
-            timestamp = datetime.now().isoformat()
-            commit_message = f"Submission for {assignment_title or assignment_name} by student {student_id} at {timestamp}"
+        if not files_to_commit and not repo_paths:
+            logger.info("No files to process after encryption")
+            return
 
-            # Try batch commit first
-            success = self.github.commit_multiple_files(
-                files_to_commit,
-                branch_name,
-                commit_message
+        # Determine existing repository state
+        repo_directory = f"submissions/{student_id}/{assignment_name}"
+        existing_repo_files = {
+            path for path in self.github.list_files(repo_directory, branch_name)
+            if path.endswith('.enc')
+        }
+
+        # Filter unchanged files to avoid redundant commits
+        filtered_files = []
+        for encrypted_path, repo_path in files_to_commit:
+            existing_content = self.github.get_file_content(repo_path, branch_name)
+            if existing_content is not None:
+                current_content = encrypted_path.read_bytes()
+                if existing_content == current_content:
+                    logger.info(f"Skipping unchanged file {repo_path}")
+                    continue
+            filtered_files.append((encrypted_path, repo_path))
+
+        files_to_commit = filtered_files
+
+        # Determine files that should be removed (e.g. renamed attachments)
+        stale_files = sorted(existing_repo_files - repo_paths)
+        if encryption_failed and stale_files:
+            logger.warning(
+                "Skipping deletion of %d file(s) due to encryption failures",
+                len(stale_files)
             )
+            stale_files = []
+        if not files_to_commit and not stale_files:
+            logger.info("No changes detected for submission; skipping GitHub commit")
+            return
+        # Try batch commit first (handles additions and deletions)
+        success = self.github.commit_multiple_files(
+            files_to_commit,
+            branch_name,
+            commit_message,
+            delete_paths=stale_files
+        )
 
-            if not success:
-                logger.warning("Batch commit failed, falling back to individual file commits")
-                # Fallback: commit files individually
-                success_count = 0
-                for encrypted_path, repo_path in files_to_commit:
-                    if self.github.commit_file(encrypted_path, repo_path, branch_name, commit_message):
-                        success_count += 1
-                    else:
-                        logger.error(f"Failed to commit {repo_path}")
+        if not success:
+            logger.warning("Batch commit failed, falling back to individual GitHub operations")
 
-                if success_count > 0:
-                    logger.info(f"Successfully uploaded {success_count}/{len(files_to_commit)} encrypted files to GitHub")
-                    success = True
+            success_count = 0
+
+            for encrypted_path, repo_path in files_to_commit:
+                if self.github.commit_file(encrypted_path, repo_path, branch_name, commit_message):
+                    success_count += 1
                 else:
-                    logger.error("Failed to upload any files to GitHub")
-                    success = False
+                    logger.error(f"Failed to commit {repo_path}")
 
-            if success:
-                logger.info(f"Successfully uploaded {len(files_to_commit)} encrypted files to GitHub")
+            delete_count = 0
+            for repo_path in stale_files:
+                if self.github.delete_file(repo_path, branch_name, commit_message):
+                    delete_count += 1
+                else:
+                    logger.error(f"Failed to delete {repo_path}")
 
-                # Create Pull Request
-                pr_title = f"Submission: {student_id} - {assignment_title or assignment_name}"
+            if success_count + delete_count == len(files_to_commit) + len(stale_files):
+                success = True
+            elif success_count + delete_count > 0:
+                success = True
+                logger.warning("Partial success when applying GitHub changes")
+            else:
+                success = False
 
-                # Build PR body
-                pr_body = f"## Student Submission\n\n"
-                pr_body += f"**Student:** {student_id}\n"
-                pr_body += f"**Assignment:** {assignment_title or assignment_name}\n"
-                pr_body += f"**Submitted:** {timestamp}\n"
-                pr_body += f"**Files:** {len(files_to_commit)}\n\n"
+        if success:
+            logger.info(
+                "Successfully synchronized %d additions and %d deletions",
+                len(files_to_commit),
+                len(stale_files)
+            )
+            # Create Pull Request (even if only deletions were applied)
+            pr_title = f"Submission: {student_id} - {assignment_title or assignment_name}"
 
-                if submission:
-                    state = submission.get('state', 'UNKNOWN')
-                    pr_body += f"**State:** {state}\n"
+            # Build PR body
+            pr_body = f"## Student Submission\n\n"
+            pr_body += f"**Student:** {student_id}\n"
+            pr_body += f"**Assignment:** {assignment_title or assignment_name}\n"
+            pr_body += f"**Submitted:** {timestamp}\n"
+            pr_body += f"**Files:** {len(repo_paths)}\n\n"
 
-                pr_body += f"\n### Files Submitted\n"
+            if submission:
+                state = submission.get('state', 'UNKNOWN')
+                pr_body += f"**State:** {state}\n"
+
+            if files_to_commit:
+                pr_body += f"\n### Updated Files\n"
                 for _, repo_path in files_to_commit:
                     filename = repo_path.split('/')[-1].replace('.enc', '')
                     pr_body += f"- {filename}\n"
 
-                pr_body += f"\n---\n"
-                pr_body += f"🤖 Automated submission from Google Classroom\n"
-                pr_body += f"✅ Grading workflow will run automatically\n"
+            if stale_files:
+                pr_body += f"\n### Removed Files\n"
+                for repo_path in stale_files:
+                    filename = repo_path.split('/')[-1].replace('.enc', '')
+                    pr_body += f"- {filename}\n"
 
-                pr_url = self.github.create_pull_request(
-                    branch_name=branch_name,
-                    title=pr_title,
-                    body=pr_body
-                )
+            if repo_paths:
+                pr_body += f"\n### Current Submission Files\n"
+                for repo_path in sorted(repo_paths):
+                    filename = repo_path.split('/')[-1].replace('.enc', '')
+                    pr_body += f"- {filename}\n"
 
-                if pr_url:
-                    logger.info(f"Created PR: {pr_url}")
-                else:
-                    logger.warning("Failed to create PR, but files were uploaded")
+            pr_body += f"\n---\n"
+            pr_body += f"🤖 Automated submission from Google Classroom\n"
+            pr_body += f"✅ Grading workflow will run automatically\n"
 
+            pr_url = self.github.create_pull_request(
+                branch_name=branch_name,
+                title=pr_title,
+                body=pr_body
+            )
+
+            if pr_url:
+                logger.info(f"Created PR: {pr_url}")
             else:
-                logger.error("Failed to upload files to GitHub")
+                logger.warning("Failed to create PR, but repository state was synchronized")
+        else:
+            logger.error("Failed to synchronize submission with GitHub")
 
     def list_courses(self):
         """List all available courses."""

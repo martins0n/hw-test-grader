@@ -56,6 +56,45 @@ class GitHubManager:
 
         return branch_name
 
+    def rebase_branch(self, branch_name: str, base_branch: str = "main") -> bool:
+        """
+        Rebase a branch onto the base branch.
+
+        Args:
+            branch_name: Branch to rebase
+            base_branch: Base branch to rebase onto (default: main)
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Get the base branch
+            try:
+                base = self.repo.get_branch(base_branch)
+            except GithubException:
+                base = self.repo.get_branch("master")
+                base_branch = "master"
+
+            # Get the current branch
+            branch = self.repo.get_branch(branch_name)
+
+            # Check if already up to date
+            if branch.commit.sha == base.commit.sha:
+                logger.info(f"Branch {branch_name} is already up to date with {base_branch}")
+                return True
+
+            # Update the branch reference to point to the base branch commit
+            # This effectively rebases by fast-forwarding
+            ref = self.repo.get_git_ref(f"heads/{branch_name}")
+            ref.edit(sha=base.commit.sha, force=False)
+
+            logger.info(f"Rebased {branch_name} onto {base_branch}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to rebase {branch_name}: {e}")
+            return False
+
     def commit_file(
         self,
         file_path: Path,
@@ -81,7 +120,10 @@ class GitHubManager:
             # Check if file already exists
             try:
                 existing_file = self.repo.get_contents(repo_path, ref=branch_name)
-                # Update existing file
+                if existing_file.decoded_content == content:
+                    logger.info(f"No changes for {repo_path}; skipping update")
+                    return True
+
                 self.repo.update_file(
                     path=repo_path,
                     message=commit_message,
@@ -110,7 +152,8 @@ class GitHubManager:
         self,
         files: List[tuple[Path, str]],
         branch_name: str,
-        commit_message: str
+        commit_message: str,
+        delete_paths: Optional[List[str]] = None
     ) -> bool:
         """
         Commit multiple files in a single commit.
@@ -144,6 +187,21 @@ class GitHubManager:
                     sha=blob.sha
                 )
                 tree_elements.append(element)
+
+            # Mark deletions
+            for repo_path in delete_paths or []:
+                tree_elements.append(
+                    InputGitTreeElement(
+                        path=repo_path,
+                        mode='100644',
+                        type='blob',
+                        sha=None
+                    )
+                )
+
+            if not tree_elements:
+                logger.info("No changes detected; skipping commit")
+                return True
 
             # Create tree
             tree = self.repo.create_git_tree(tree_elements, base_tree)
@@ -179,6 +237,53 @@ class GitHubManager:
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
             return False
+
+    def delete_file(
+        self,
+        repo_path: str,
+        branch_name: str,
+        commit_message: str
+    ) -> bool:
+        """Delete a file from the repository."""
+        try:
+            existing_file = self.repo.get_contents(repo_path, ref=branch_name)
+            self.repo.delete_file(
+                path=repo_path,
+                message=commit_message,
+                sha=existing_file.sha,
+                branch=branch_name
+            )
+            logger.info(f"Deleted {repo_path} from {branch_name}")
+            return True
+        except GithubException:
+            logger.warning(f"File {repo_path} not found when attempting deletion")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to delete {repo_path}: {e}")
+            return False
+
+    def list_files(
+        self,
+        directory: str,
+        branch_name: str
+    ) -> List[str]:
+        """List all file paths under a directory for a branch."""
+        try:
+            contents = self.repo.get_contents(directory, ref=branch_name)
+        except GithubException:
+            return []
+
+        stack = contents if isinstance(contents, list) else [contents]
+        files: List[str] = []
+
+        while stack:
+            item = stack.pop()
+            if item.type == 'file':
+                files.append(item.path)
+            elif item.type == 'dir':
+                stack.extend(self.repo.get_contents(item.path, ref=branch_name))
+
+        return files
 
     def get_file_content(self, file_path: str, branch_name: str) -> Optional[bytes]:
         """
