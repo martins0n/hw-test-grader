@@ -34,7 +34,11 @@ def get_student_email_from_id(student_id: str) -> str:
 
 def load_assignment_config(assignment_id: str) -> dict:
     """
-    Load configuration for an assignment.
+    Load configuration for an assignment from environment or file.
+
+    Checks in order:
+    1. Environment variable: ASSIGNMENT_{NAME}_COURSEWORK_ID
+    2. courses_config.json file
 
     Args:
         assignment_id: Assignment identifier
@@ -42,24 +46,40 @@ def load_assignment_config(assignment_id: str) -> dict:
     Returns:
         Configuration dictionary with course_id and coursework_id
     """
+    # Try environment variables first (simplest)
+    # Format: ASSIGNMENT_HOMEWORK_1_EXAMPLE_COURSEWORK_ID=123456789
+    env_key = f"ASSIGNMENT_{assignment_id.upper().replace('-', '_')}_COURSEWORK_ID"
+    coursework_id = os.getenv(env_key)
+
+    if coursework_id:
+        # Use first course from COURSE_IDS
+        course_ids = os.getenv('COURSE_IDS', '').split(',')
+        course_id = course_ids[0].strip() if course_ids else None
+
+        if course_id:
+            max_points = int(os.getenv(f"{env_key.replace('_COURSEWORK_ID', '_MAX_POINTS')}", "100"))
+            print(f"Using environment config for {assignment_id}")
+            return {
+                'course_id': course_id,
+                'coursework_id': coursework_id,
+                'max_points': max_points
+            }
+
+    # Try config file as fallback
     config_path = Path('courses_config.json')
+    if config_path.exists():
+        with open(config_path) as f:
+            config = json.load(f)
 
-    if not config_path.exists():
-        print("Warning: courses_config.json not found")
-        return {}
-
-    with open(config_path) as f:
-        config = json.load(f)
-
-    # Look for assignment in config
-    for course in config.get('courses', []):
-        for assignment in course.get('assignments', []):
-            if assignment.get('name') == assignment_id or assignment.get('id') == assignment_id:
-                return {
-                    'course_id': course.get('id'),
-                    'coursework_id': assignment.get('id'),
-                    'max_points': assignment.get('maxPoints')
-                }
+        # Look for assignment in config
+        for course in config.get('courses', []):
+            for assignment in course.get('assignments', []):
+                if assignment.get('name') == assignment_id or assignment.get('id') == assignment_id:
+                    return {
+                        'course_id': course.get('id'),
+                        'coursework_id': assignment.get('id'),
+                        'max_points': assignment.get('maxPoints')
+                    }
 
     return {}
 
@@ -113,7 +133,14 @@ def send_results(student_id: str, assignment_id: str, report_path: str, submit_g
             assignment_config = load_assignment_config(assignment_id)
 
             if not assignment_config:
-                print(f"Warning: No configuration found for assignment {assignment_id}")
+                print(f"⚠️  No configuration found for assignment '{assignment_id}'")
+                print("")
+                print("To enable Google Classroom grade submission, set environment variables:")
+                print(f"  ASSIGNMENT_{assignment_id.upper().replace('-', '_')}_COURSEWORK_ID=<coursework_id>")
+                print(f"  ASSIGNMENT_{assignment_id.upper().replace('-', '_')}_MAX_POINTS=100")
+                print("")
+                print("Or create courses_config.json - see docs/GOOGLE_CLASSROOM_SETUP.md")
+                print("")
                 print("Skipping Google Classroom submission")
                 return
 
