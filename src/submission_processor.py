@@ -87,7 +87,7 @@ class SubmissionProcessor:
 
         for submission in submissions:
             try:
-                self.process_single_submission(course_id, coursework_id, submission, coursework_title)
+                self.process_single_submission(course_id, coursework_id, submission, coursework_title, coursework_id)
             except Exception as e:
                 logger.error(f"Error processing submission {submission.get('id')}: {e}")
 
@@ -113,13 +113,14 @@ class SubmissionProcessor:
             name = name[:50].rstrip('-')
         return name
 
-    def process_single_submission(self, course_id: str, coursework_id: str, submission: Dict, coursework_title: str = None):
+    def process_single_submission(self, course_id: str, coursework_id: str, submission: Dict, coursework_title: str = None, assignment_coursework_id: str = None):
         """
         Process a single student submission.
 
         Args:
             course_id: Course ID
-            coursework_id: Assignment ID
+            coursework_id: Assignment ID (for fetching submission)
+            assignment_coursework_id: Assignment ID to pass to PR metadata
             submission: Submission dictionary from Google Classroom
             coursework_title: Assignment title/name
         """
@@ -163,7 +164,7 @@ class SubmissionProcessor:
             return
 
         # Encrypt and upload to GitHub, and create PR
-        self._encrypt_and_upload(student_id, assignment_name, downloaded_files, course_id, submission, coursework_title)
+        self._encrypt_and_upload(student_id, assignment_name, downloaded_files, course_id, assignment_coursework_id or coursework_id, submission, coursework_title)
 
     def _encrypt_and_upload(
         self,
@@ -171,6 +172,7 @@ class SubmissionProcessor:
         assignment_name: str,
         files: List[Path],
         course_id: str = None,
+        coursework_id: str = None,
         submission: Dict = None,
         assignment_title: str = None
     ):
@@ -181,7 +183,8 @@ class SubmissionProcessor:
             student_id: Student ID (email-based)
             assignment_name: Sanitized assignment name for branches/paths
             files: List of file paths to encrypt and upload
-            course_id: Course ID (for getting coursework title)
+            course_id: Course ID (for metadata)
+            coursework_id: Coursework/assignment ID (for metadata)
             submission: Submission dict (for PR metadata)
             assignment_title: Original assignment title for display
         """
@@ -295,6 +298,13 @@ class SubmissionProcessor:
             pr_body += f"**Assignment:** {assignment_title or assignment_name}\n"
             pr_body += f"**Submitted:** {timestamp}\n"
             pr_body += f"**Files:** {len(repo_paths)}\n\n"
+
+            # Add Google Classroom metadata for grade submission
+            pr_body += f"<!-- METADATA\n"
+            pr_body += f"course_id: {course_id}\n"
+            pr_body += f"coursework_id: {coursework_id}\n"
+            pr_body += f"assignment_name: {assignment_name}\n"
+            pr_body += f"-->\n\n"
 
             if submission:
                 state = submission.get('state', 'UNKNOWN')

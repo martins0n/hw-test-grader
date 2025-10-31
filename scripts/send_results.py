@@ -32,6 +32,55 @@ def get_student_email_from_id(student_id: str) -> str:
     return email
 
 
+def load_assignment_config_from_pr() -> dict:
+    """
+    Load assignment configuration from PR metadata.
+
+    Returns:
+        Configuration dictionary with course_id and coursework_id
+    """
+    # Check if we're in a PR context
+    pr_number = os.getenv('GITHUB_PR_NUMBER')
+    if not pr_number:
+        return {}
+
+    try:
+        from github import Github
+        token = os.getenv('GITHUB_TOKEN')
+        repo_name = os.getenv('GITHUB_REPOSITORY')
+
+        if not token or not repo_name:
+            return {}
+
+        g = Github(token)
+        repo = g.get_repo(repo_name)
+        pr = repo.get_pull(int(pr_number))
+
+        # Extract metadata from PR body
+        body = pr.body or ""
+
+        # Look for metadata comment
+        import re
+        metadata_match = re.search(r'<!-- METADATA\n(.*?)\n-->', body, re.DOTALL)
+        if metadata_match:
+            metadata_text = metadata_match.group(1)
+            config = {}
+            for line in metadata_text.split('\n'):
+                if ':' in line:
+                    key, value = line.split(':', 1)
+                    config[key.strip()] = value.strip()
+
+            if 'course_id' in config and 'coursework_id' in config:
+                return {
+                    'course_id': config['course_id'],
+                    'coursework_id': config['coursework_id'],
+                    'max_points': 100  # Default, will be overridden by test results
+                }
+    except Exception as e:
+        print(f"Could not load config from PR: {e}")
+
+    return {}
+
 def load_assignment_config(assignment_id: str) -> dict:
     """
     Load configuration for an assignment from environment or file.
@@ -129,8 +178,12 @@ def send_results(student_id: str, assignment_id: str, report_path: str, submit_g
         try:
             print("\nSubmitting grade to Google Classroom...")
 
-            # Load assignment configuration
-            assignment_config = load_assignment_config(assignment_id)
+            # Try to load assignment configuration from PR metadata first
+            assignment_config = load_assignment_config_from_pr()
+
+            # Fall back to environment/file config
+            if not assignment_config:
+                assignment_config = load_assignment_config(assignment_id)
 
             if not assignment_config:
                 print(f"⚠️  No configuration found for assignment '{assignment_id}'")
