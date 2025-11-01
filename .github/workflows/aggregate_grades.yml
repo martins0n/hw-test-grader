@@ -35,14 +35,67 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Download all grading report artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: grading-report-*
-          path: artifacts/
-          merge-multiple: false
+      - name: Download grading report artifacts from all workflows
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ASSIGNMENT_ID: ${{ github.event.inputs.assignment_id }}
+        run: |
+          # Use GitHub CLI to download artifacts from grade_submission workflows
+          echo "🔍 Searching for grading report artifacts..."
+
+          mkdir -p artifacts
+
+          # Get all successful grade_submission workflow runs from the last 30 days
+          gh run list \
+            --workflow=grade_submission.yml \
+            --status=success \
+            --limit=100 \
+            --json databaseId,conclusion \
+            --jq '.[].databaseId' > workflow_runs.txt
+
+          if [ ! -s workflow_runs.txt ]; then
+            echo "⚠️  No successful grade_submission workflows found"
+            exit 0
+          fi
+
+          # Download artifacts from each workflow run
+          count=0
+          while read -r run_id; do
+            echo "Checking run #$run_id..."
+
+            # List artifacts for this run
+            gh run view "$run_id" \
+              --json artifacts \
+              --jq '.artifacts[] | select(.name | startswith("grading-report-")) | .name' > artifacts_list.txt || continue
+
+            # Download each grading report artifact
+            while read -r artifact_name; do
+              if [ -n "$artifact_name" ]; then
+                echo "  📥 Downloading: $artifact_name"
+                gh run download "$run_id" \
+                  --name "$artifact_name" \
+                  --dir "artifacts/$artifact_name" 2>/dev/null || echo "    ⚠️  Failed to download"
+                ((count++))
+              fi
+            done < artifacts_list.txt
+          done < workflow_runs.txt
+
+          echo "✓ Downloaded $count artifact(s)"
+
+      - name: Check if artifacts were downloaded
+        id: check-artifacts
+        run: |
+          if [ -d "artifacts" ] && [ "$(ls -A artifacts 2>/dev/null)" ]; then
+            echo "found=true" >> $GITHUB_OUTPUT
+            echo "✓ Found grading report artifacts"
+          else
+            echo "found=false" >> $GITHUB_OUTPUT
+            echo "⚠️  No grading report artifacts found"
+            echo "   Students need to submit and get graded before aggregation can run."
+          fi
 
       - name: Aggregate grades into CSV
+        if: steps.check-artifacts.outputs.found == 'true'
         env:
           ASSIGNMENT_ID: ${{ github.event.inputs.assignment_id }}
         run: |
@@ -52,6 +105,7 @@ jobs:
             ${ASSIGNMENT_ID:+--assignment-id "$ASSIGNMENT_ID"}
 
       - name: Upload aggregated CSVs
+        if: steps.check-artifacts.outputs.found == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: aggregated-grades-${{ github.run_number }}
@@ -65,7 +119,16 @@ jobs:
           echo "- Run at: $(date)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          if [ -d reports/aggregated ]; then
+          if [ "${{ steps.check-artifacts.outputs.found }}" = "false" ]; then
+            echo "### ⚠️ No Grading Reports Found" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "This is normal if:" >> $GITHUB_STEP_SUMMARY
+            echo "- No students have submitted yet" >> $GITHUB_STEP_SUMMARY
+            echo "- No grading workflows have completed yet" >> $GITHUB_STEP_SUMMARY
+            echo "- Artifacts have expired (90 days)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**What to do:** Wait for students to submit and get graded, then run this workflow again." >> $GITHUB_STEP_SUMMARY
+          elif [ -d reports/aggregated ]; then
             echo "### Generated CSV Files" >> $GITHUB_STEP_SUMMARY
             for csv in reports/aggregated/*.csv; do
               if [ -f "$csv" ]; then
