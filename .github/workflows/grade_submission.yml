@@ -127,12 +127,51 @@ jobs:
           name: grading-report-${{ steps.extract_info.outputs.student_id }}-${{ steps.extract_info.outputs.assignment_id }}
           path: reports/grade_report.json
 
+      - name: Set up Google Classroom credentials
+        if: always()
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          GOOGLE_TOKEN: ${{ secrets.GOOGLE_TOKEN }}
+        run: |
+          # Check if credentials secret is set
+          if [ -z "$GOOGLE_CREDENTIALS" ]; then
+            echo "Warning: GOOGLE_CREDENTIALS secret is not set"
+            echo "Grade submission to Google Classroom will be skipped"
+            exit 0
+          fi
+
+          # Write credentials file (use printf to avoid adding newlines)
+          printf '%s' "$GOOGLE_CREDENTIALS" > credentials.json
+
+          # Validate JSON format
+          if ! python -m json.tool credentials.json > /dev/null 2>&1; then
+            echo "Error: credentials.json is not valid JSON"
+            echo "File size: $(wc -c < credentials.json) bytes"
+            exit 1
+          fi
+
+          echo "✓ credentials.json validated successfully"
+
+          # Set up token if provided
+          if [ ! -z "$GOOGLE_TOKEN" ]; then
+            # Decode base64-encoded token (binary file)
+            # Remove any whitespace/newlines first
+            if echo "$GOOGLE_TOKEN" | tr -d '[:space:]' | base64 -d > token.json 2>/dev/null; then
+              echo "✓ token.json decoded successfully"
+            else
+              echo "Warning: Failed to decode GOOGLE_TOKEN (invalid base64)"
+              echo "Will attempt to authenticate without cached token"
+              rm -f token.json
+            fi
+          else
+            echo "Note: GOOGLE_TOKEN not set - will attempt authentication without cached token"
+          fi
+
       - name: Send results
         if: always()
         env:
           STUDENT_ID: ${{ steps.extract_info.outputs.student_id }}
           ASSIGNMENT_ID: ${{ steps.extract_info.outputs.assignment_id }}
-          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}

@@ -174,7 +174,7 @@ def send_results(student_id: str, assignment_id: str, report_path: str, submit_g
             print(f"Matches: {report.get('matches', 0)}/{report.get('total_expected', 0)}")
 
     # Submit to Google Classroom if enabled
-    if submit_grade and os.getenv('GOOGLE_CREDENTIALS'):
+    if submit_grade and os.path.exists('credentials.json'):
         try:
             print("\nSubmitting grade to Google Classroom...")
 
@@ -244,7 +244,7 @@ def send_results(student_id: str, assignment_id: str, report_path: str, submit_g
         if not submit_grade:
             print("\nGrade submission disabled")
         else:
-            print("\nGOOGLE_CREDENTIALS not found, skipping Google Classroom submission")
+            print("\ncredentials.json not found, skipping Google Classroom submission")
         print("Results are available in the CI/CD artifacts")
 
 
