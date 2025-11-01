@@ -45,42 +45,76 @@ jobs:
 
           mkdir -p artifacts
 
-          # Get all successful grade_submission workflow runs from the last 30 days
+          # Get all grade_submission workflow runs (completed, not just successful)
+          echo "Fetching workflow runs..."
           gh run list \
             --workflow=grade_submission.yml \
-            --status=success \
             --limit=100 \
-            --json databaseId,conclusion \
-            --jq '.[].databaseId' > workflow_runs.txt
+            --json databaseId,status,conclusion,createdAt \
+            --jq '.[] | select(.status == "completed") | .databaseId' > workflow_runs.txt
+
+          run_count=$(wc -l < workflow_runs.txt)
+          echo "Found $run_count completed workflow run(s)"
 
           if [ ! -s workflow_runs.txt ]; then
-            echo "⚠️  No successful grade_submission workflows found"
+            echo "⚠️  No completed grade_submission workflows found"
+            echo "   This might mean:"
+            echo "   - No students have been graded yet"
+            echo "   - The workflow name doesn't match 'grade_submission.yml'"
+            echo ""
+            echo "Listing all recent workflows:"
+            gh run list --limit=10
             exit 0
           fi
 
           # Download artifacts from each workflow run
-          count=0
+          total_count=0
+          downloaded_count=0
+
           while read -r run_id; do
-            echo "Checking run #$run_id..."
+            echo ""
+            echo "Checking workflow run #$run_id..."
 
-            # List artifacts for this run
-            gh run view "$run_id" \
-              --json artifacts \
-              --jq '.artifacts[] | select(.name | startswith("grading-report-")) | .name' > artifacts_list.txt || continue
+            # List artifacts using GitHub API
+            gh api "/repos/${{ github.repository }}/actions/runs/${run_id}/artifacts" \
+              --jq '.artifacts[] | "\(.name)|\(.expired)"' > artifacts_list.txt 2>/dev/null || continue
 
-            # Download each grading report artifact
-            while read -r artifact_name; do
-              if [ -n "$artifact_name" ]; then
+            if [ ! -s artifacts_list.txt ]; then
+              echo "  No artifacts found in this run"
+              continue
+            fi
+
+            echo "  Artifacts in this run:"
+            cat artifacts_list.txt | while IFS='|' read -r name expired; do
+              echo "    - $name (expired: $expired)"
+            done
+
+            # Download grading report artifacts that haven't expired
+            cat artifacts_list.txt | while IFS='|' read -r artifact_name expired; do
+              if [[ "$artifact_name" == grading-report-* ]] && [ "$expired" = "false" ]; then
                 echo "  📥 Downloading: $artifact_name"
-                gh run download "$run_id" \
-                  --name "$artifact_name" \
-                  --dir "artifacts/$artifact_name" 2>/dev/null || echo "    ⚠️  Failed to download"
-                ((count++))
+                if gh run download "$run_id" --name "$artifact_name" --dir "artifacts/$artifact_name" 2>&1; then
+                  echo "    ✓ Downloaded successfully"
+                  ((downloaded_count++))
+                else
+                  echo "    ⚠️  Failed to download"
+                fi
+                ((total_count++))
               fi
-            done < artifacts_list.txt
+            done
           done < workflow_runs.txt
 
-          echo "✓ Downloaded $count artifact(s)"
+          echo ""
+          echo "============================================"
+          # Count actual downloaded artifacts
+          if [ -d "artifacts" ]; then
+            actual_count=$(find artifacts -name "grade_report.json" 2>/dev/null | wc -l)
+            echo "Found $actual_count grading report(s) in artifacts directory"
+          else
+            actual_count=0
+            echo "No artifacts directory created"
+          fi
+          echo "============================================"
 
       - name: Check if artifacts were downloaded
         id: check-artifacts
