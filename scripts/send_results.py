@@ -6,7 +6,9 @@ import argparse
 import json
 import sys
 import os
+import csv
 from pathlib import Path
+from datetime import datetime
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -133,6 +135,46 @@ def load_assignment_config(assignment_id: str) -> dict:
     return {}
 
 
+def export_grade_to_csv(student_id: str, assignment_id: str, grade_value: float,
+                        max_points: float = 100, csv_path: str = None):
+    """
+    Export grade to CSV file for bulk import to Google Classroom.
+
+    Args:
+        student_id: Student identifier
+        assignment_id: Assignment identifier
+        grade_value: Grade value (points or percentage)
+        max_points: Maximum points for the assignment
+        csv_path: Path to CSV file (default: reports/grades_{assignment_id}.csv)
+    """
+    if csv_path is None:
+        csv_path = f"reports/grades_{assignment_id}.csv"
+
+    csv_file = Path(csv_path)
+    csv_file.parent.mkdir(parents=True, exist_ok=True)
+
+    # Convert student_id to email
+    student_email = get_student_email_from_id(student_id)
+
+    # Check if file exists to determine if we need to write header
+    file_exists = csv_file.exists()
+
+    # Append to CSV
+    with open(csv_file, 'a', newline='') as f:
+        writer = csv.writer(f)
+
+        # Write header if file is new
+        if not file_exists:
+            writer.writerow(['Student Email', 'Grade', 'Max Points', 'Timestamp', 'Assignment'])
+
+        # Write grade row
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        writer.writerow([student_email, grade_value, max_points, timestamp, assignment_id])
+
+    print(f"📝 Grade exported to CSV: {csv_path}")
+    return csv_path
+
+
 def send_results(student_id: str, assignment_id: str, report_path: str, submit_grade: bool = True):
     """
     Send grading results to student via Google Classroom.
@@ -173,7 +215,11 @@ def send_results(student_id: str, assignment_id: str, report_path: str, submit_g
             print(f"Score: {grade_value}%")
             print(f"Matches: {report.get('matches', 0)}/{report.get('total_expected', 0)}")
 
-    # Submit to Google Classroom if enabled
+    # Always export to CSV for bulk grade submission
+    max_points = report.get('total_points', 100) if 'test_case_results' in report else 100
+    export_grade_to_csv(student_id, assignment_id, grade_value, max_points)
+
+    # Submit to Google Classroom if enabled (deprecated - use bulk submission instead)
     if submit_grade and os.path.exists('credentials.json'):
         try:
             print("\nSubmitting grade to Google Classroom...")
