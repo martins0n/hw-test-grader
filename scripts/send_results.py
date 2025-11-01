@@ -24,11 +24,11 @@ def get_student_email_from_id(student_id: str) -> str:
     Returns:
         Student email address
     """
-    # Reverse the transformation: _at_ -> @, _ -> .
-    # This is a simplification; you may need more robust logic
+    # Reverse the transformation done in classroom_client.py:
+    # email.replace('@', '_at_').replace('.', '_')
+    # First replace _at_ with @, then replace remaining _ with .
     email = student_id.replace('_at_', '@')
-    # Be careful with underscores in email vs those added by transformation
-    # For now, assume the format is consistent
+    email = email.replace('_', '.')
     return email
 
 
