@@ -1,0 +1,79 @@
+name: Aggregate Grades
+
+on:
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      assignment_id:
+        description: 'Assignment ID (leave empty for all assignments)'
+        required: false
+        type: string
+
+  # Run daily to aggregate recent grades
+  schedule:
+    - cron: '0 2 * * *'  # Run at 2 AM daily
+
+jobs:
+  aggregate:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      actions: read  # Needed to download artifacts
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Download all grading report artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: grading-report-*
+          path: artifacts/
+          merge-multiple: false
+
+      - name: Aggregate grades into CSV
+        env:
+          ASSIGNMENT_ID: ${{ github.event.inputs.assignment_id }}
+        run: |
+          python scripts/aggregate_grades.py \
+            --artifacts-dir artifacts/ \
+            --output-dir reports/aggregated/ \
+            ${ASSIGNMENT_ID:+--assignment-id "$ASSIGNMENT_ID"}
+
+      - name: Upload aggregated CSVs
+        uses: actions/upload-artifact@v4
+        with:
+          name: aggregated-grades-${{ github.run_number }}
+          path: reports/aggregated/*.csv
+          if-no-files-found: warn
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Aggregation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- Run at: $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -d reports/aggregated ]; then
+            echo "### Generated CSV Files" >> $GITHUB_STEP_SUMMARY
+            for csv in reports/aggregated/*.csv; do
+              if [ -f "$csv" ]; then
+                assignment=$(basename "$csv" .csv | sed 's/grades_//')
+                count=$(tail -n +2 "$csv" | wc -l)
+                echo "- **$assignment**: $count students" >> $GITHUB_STEP_SUMMARY
+              fi
+            done
+          else
+            echo "⚠️ No grades found to aggregate" >> $GITHUB_STEP_SUMMARY
+          fi
