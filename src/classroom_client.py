@@ -48,44 +48,8 @@ class ClassroomClient:
         """Authenticate with Google Classroom API."""
         creds = None
 
-        # Check for token in environment variable first (for CI)
-        google_creds_env = os.getenv('GOOGLE_CREDENTIALS')
-        if google_creds_env:
-            try:
-                import json
-                import base64
-                # Try to parse as JSON (could be service account or token)
-                creds_data = json.loads(google_creds_env)
-
-                if creds_data.get('type') == 'service_account':
-                    # Service account credentials
-                    from google.oauth2 import service_account
-                    creds = service_account.Credentials.from_service_account_info(
-                        creds_data, scopes=SCOPES
-                    )
-                    logger.info("Using service account credentials from GOOGLE_CREDENTIALS")
-                else:
-                    # OAuth2 token - try to load as pickle (base64 encoded)
-                    try:
-                        token_bytes = base64.b64decode(google_creds_env)
-                        creds = pickle.loads(token_bytes)
-                        logger.info("Using OAuth token from GOOGLE_CREDENTIALS (base64)")
-                    except:
-                        # Not base64, maybe direct JSON token format
-                        creds = Credentials.from_authorized_user_info(creds_data, SCOPES)
-                        logger.info("Using OAuth token from GOOGLE_CREDENTIALS (JSON)")
-            except json.JSONDecodeError:
-                # Maybe it's base64-encoded pickle
-                try:
-                    import base64
-                    token_bytes = base64.b64decode(google_creds_env)
-                    creds = pickle.loads(token_bytes)
-                    logger.info("Using token from GOOGLE_CREDENTIALS (base64 pickle)")
-                except:
-                    logger.warning("Could not parse GOOGLE_CREDENTIALS, falling back to file-based auth")
-
-        # Load token from file if not from environment
-        if not creds and os.path.exists(self.token_path):
+        # Load token if it exists
+        if os.path.exists(self.token_path):
             with open(self.token_path, 'rb') as token:
                 creds = pickle.load(token)
                 logger.info(f"Loaded token from {self.token_path}")
@@ -114,10 +78,9 @@ class ClassroomClient:
                     # Clean up environment variable
                     _os.environ.pop('OAUTHLIB_RELAX_TOKEN_SCOPE', None)
 
-            # Save the credentials for the next run (but not in CI)
-            if not os.getenv('GOOGLE_CREDENTIALS'):
-                with open(self.token_path, 'wb') as token:
-                    pickle.dump(creds, token)
+            # Save the credentials for the next run
+            with open(self.token_path, 'wb') as token:
+                pickle.dump(creds, token)
 
         self.service = build('classroom', 'v1', credentials=creds)
         self.drive_service = build('drive', 'v3', credentials=creds)
