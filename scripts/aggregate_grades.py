@@ -101,6 +101,13 @@ def aggregate_grades(artifacts_dir: str, output_dir: str, assignment_filter: str
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
+    # Check if artifacts directory exists
+    if not artifacts_path.exists():
+        print(f"⚠️  Artifacts directory not found: {artifacts_dir}")
+        print("   This is normal if no grading has run yet.")
+        print("   Students need to submit and get graded before aggregation can run.")
+        return 0
+
     # Group grades by assignment
     grades_by_assignment = defaultdict(list)
 
@@ -218,8 +225,10 @@ def main():
 
         if count == 0:
             print("\n⚠️  No grades found to aggregate")
-            print("   Make sure grading workflows have run and created artifacts")
-            sys.exit(1)
+            print("   This is normal if no students have submitted yet.")
+            print("   Make sure grading workflows have run and created artifacts.")
+            # Exit successfully - this is not an error, just nothing to do
+            sys.exit(0)
 
     except Exception as e:
         print(f"\n❌ Error: {e}")
