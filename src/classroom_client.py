@@ -54,6 +54,26 @@ class ClassroomClient:
                 creds = pickle.load(token)
                 logger.info(f"Loaded token from {self.token_path}")
 
+            # Check if token has all required scopes
+            if creds and hasattr(creds, 'scopes') and creds.scopes:
+                missing_scopes = set(SCOPES) - set(creds.scopes)
+                if missing_scopes:
+                    logger.warning(f"Token is missing required scopes: {missing_scopes}")
+
+                    # In CI environment, we can't do interactive auth
+                    if os.getenv('CI') or os.getenv('GITHUB_ACTIONS'):
+                        raise RuntimeError(
+                            f"Token is missing required scopes: {missing_scopes}\n"
+                            "Please regenerate the GOOGLE_TOKEN secret with all required scopes:\n"
+                            "1. Delete token.json locally\n"
+                            "2. Run the download script to re-authenticate with new scopes\n"
+                            "3. Encode token.json to base64: base64 -w 0 token.json\n"
+                            "4. Update the GOOGLE_TOKEN secret in GitHub with the new base64 string"
+                        )
+
+                    logger.info("Forcing re-authentication to get all scopes")
+                    creds = None  # Force re-authentication
+
         # If there are no (valid) credentials, let the user log in
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
