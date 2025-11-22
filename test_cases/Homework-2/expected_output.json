@@ -1,0 +1,69 @@
+{
+  "test_cases": [
+    {
+      "name": "Task 1: Dataset should have correct dimensions and date range",
+      "points": 10,
+      "expected": {
+        "rows": 192808,
+        "segments": 88,
+        "start_year": 2010,
+        "end_year": 2015
+      }
+    },
+    {
+      "name": "Task 2: Naive vs STL comparison",
+      "points": 20,
+      "expected": {
+        "naive_smape": 21.0,
+        "stl_naive_smape": 21.0,
+        "stl_improves": true
+      },
+      "compare_fields": {
+        "naive_smape": "<",
+        "stl_naive_smape": "<"
+      }
+    },
+    {
+      "name": "Task 3: Standardization comparison and Linear Regression performance",
+      "points": 20,
+      "expected": {
+        "is_per_segment_better": true,
+        "micro_lr_smape": 22.0
+      },
+      "compare_fields": {
+        "micro_lr_smape": "<"
+      }
+    },
+    {
+      "name": "Task 4: AutoARIMA with hyperparameter tuning",
+      "points": 30,
+      "expected": {
+        "segment_name": "Canada-GadgetOutlet-CoreX360",
+        "aic": 20000.0
+      },
+      "compare_fields": {
+        "aic": "<"
+      }
+    },
+    {
+      "name": "Task 5: Prophet baseline performance",
+      "points": 10,
+      "expected": {
+        "prophet_smape": 17.25
+      },
+      "compare_fields": {
+        "prophet_smape": "<"
+      }
+    },
+    {
+      "name": "Task 6: Final submission quality",
+      "points": 10,
+      "expected": {
+        "current_smape": 17.0
+      },
+      "compare_fields": {
+        "current_smape": "<"
+      }
+    }
+  ]
+}
