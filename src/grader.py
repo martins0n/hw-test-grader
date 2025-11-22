@@ -345,12 +345,12 @@ class NotebookGrader:
                 # Handle object/array comparisons with field-level operators
                 elif isinstance(expected, dict) and ('compare_fields' in test_case or 'compare' in test_case):
                     # Check if expected dict has comparison operators for fields
-                    passed = True
+                    total_fields = len(expected)
+                    passed_fields = 0
                     errors = []
 
                     for key, exp_val in expected.items():
                         if key not in student_output:
-                            passed = False
                             errors.append(f"Missing field '{key}'")
                             continue
 
@@ -358,16 +358,27 @@ class NotebookGrader:
                         field_compare = test_case.get('compare_fields', {}).get(key, '==')
                         field_tolerance = test_case.get('tolerance_fields', {}).get(key, tolerance)
 
-                        if not self._compare_values(student_output[key], exp_val, field_compare, field_tolerance):
-                            passed = False
+                        if self._compare_values(student_output[key], exp_val, field_compare, field_tolerance):
+                            passed_fields += 1
+                        else:
                             errors.append(f"Field '{key}': {student_output[key]} {field_compare} {exp_val}")
 
-                    if passed:
-                        case_result['passed'] = True
-                        case_result['earned'] = points
-                        result['passed_cases'] += 1
-                        result['earned_points'] += points
+                    # Calculate partial points based on fields passed
+                    if total_fields > 0:
+                        earned = (passed_fields / total_fields) * points
+                        earned = min(earned, points)  # Ensure earned doesn't exceed max
                     else:
+                        earned = 0
+
+                    case_result['earned'] = earned
+                    result['earned_points'] += earned
+
+                    # Mark as passed only if all fields pass
+                    if passed_fields == total_fields:
+                        case_result['passed'] = True
+                        result['passed_cases'] += 1
+                    else:
+                        case_result['passed'] = False
                         case_result['error'] = '; '.join(errors)
                         case_result['expected'] = expected
                         case_result['received'] = student_output
