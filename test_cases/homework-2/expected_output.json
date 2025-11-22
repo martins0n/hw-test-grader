@@ -20,7 +20,8 @@
       },
       "compare_fields": {
         "naive_smape": "<",
-        "stl_naive_smape": "<"
+        "stl_naive_smape": "<",
+        "stl_improves": "=="
       }
     },
     {
@@ -31,7 +32,8 @@
         "micro_lr_smape": 22.0
       },
       "compare_fields": {
-        "micro_lr_smape": "<"
+        "micro_lr_smape": "<",
+        "is_per_segment_better": "=="
       }
     },
     {
@@ -42,7 +44,8 @@
         "aic": 20000.0
       },
       "compare_fields": {
-        "aic": "<"
+        "aic": "<",
+        "segment_name": "=="
       }
     },
     {
