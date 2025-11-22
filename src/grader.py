@@ -343,7 +343,7 @@ class NotebookGrader:
                         result['failed_cases'] += 1
 
                 # Handle object/array comparisons with field-level operators
-                elif isinstance(expected, dict) and 'compare' in test_case:
+                elif isinstance(expected, dict) and ('compare_fields' in test_case or 'compare' in test_case):
                     # Check if expected dict has comparison operators for fields
                     passed = True
                     errors = []
