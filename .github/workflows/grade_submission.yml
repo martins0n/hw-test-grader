@@ -168,7 +168,25 @@ jobs:
 
               if (results.error) {
                 comment += `### ❌ Error\n\`\`\`\n${results.error}\n\`\`\`\n`;
+              } else if (results.test_case_results) {
+                // New enhanced format with test cases
+                comment += `### Score: ${results.earned_points}/${results.total_points} (${results.score.toFixed(2)}%)\n\n`;
+                comment += `**Passed:** ${results.passed_cases}/${results.total_test_cases} test cases\n\n`;
+
+                // Show failed test cases with details
+                const failedCases = results.test_case_results.filter(tc => !tc.passed);
+                if (failedCases.length > 0) {
+                  comment += `### Failed test cases:\n\n`;
+                  failedCases.forEach(tc => {
+                    comment += `❌ **${tc.name}** (${tc.earned}/${tc.points} points)\n`;
+                    if (tc.error) {
+                      comment += `   - ${tc.error}\n`;
+                    }
+                    comment += `\n`;
+                  });
+                }
               } else {
+                // Legacy format
                 comment += `### Score: ${results.score.toFixed(2)}%\n\n`;
                 comment += `**Matches:** ${results.matches}/${results.total_expected}\n\n`;
 
