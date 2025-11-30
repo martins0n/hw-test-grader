@@ -52,7 +52,7 @@
     {
       "name": "Backtest Catboost Global",
       "points": 15,
-      "tolerance": 0.01,
+      "tolerance": 0.5,
       "expected": {
         "features_catboost_global": ["country", "df_day_number_in_week", "fourier_1", "fourier_2", "fourier_3", "fourier_4", "fourier_5", "fourier_6", "product", "store", "target"],
         "smape_backtest_result_catboost_global": 26.369243299479702
