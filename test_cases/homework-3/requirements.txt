@@ -1,2 +1,2 @@
-etna==3.0.0@git+https://github.com/etna-team/etna.git@3.0.0
+etna@git+https://github.com/etna-team/etna.git@3.0.0
 pyarrow
