@@ -79,7 +79,7 @@ jobs:
           # Install base requirements
           if [ -f requirements.txt ]; then
             echo "Installing base requirements..."
-            pip install -r requirements.txt
+            pip install --no-cache-dir -r requirements.txt
           fi
 
           # Install assignment-specific requirements if they exist
