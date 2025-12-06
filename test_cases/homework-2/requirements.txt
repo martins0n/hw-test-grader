@@ -1,2 +1,2 @@
-etna[prophet]==3.0.0
+etna[prophet]@git+https://github.com/etna-team/etna.git@3.0.0
 pyarrow
