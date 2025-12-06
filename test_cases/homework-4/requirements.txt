@@ -1,3 +1,4 @@
+-f https://download.pytorch.org/whl/cpu/torch_stable.html
 etna[all]@git+https://github.com/etna-team/etna.git@3.0.0
 transformers==4.51.2
 scikit-learn==1.6.1
