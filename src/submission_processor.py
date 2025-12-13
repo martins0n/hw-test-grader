@@ -130,6 +130,11 @@ class SubmissionProcessor:
 
         # Get student email for identification
         student_id = self.classroom.get_student_email(course_id, user_id)
+        
+        # Get student name from profile
+        student_info = self.classroom.get_student_info(course_id, user_id)
+        profile = student_info.get('profile', {})
+        student_name = profile.get('name', {}).get('fullName', '')
 
         # Sanitize assignment name for use in paths
         assignment_name = self._sanitize_name(coursework_title) if coursework_title else coursework_id
@@ -164,7 +169,7 @@ class SubmissionProcessor:
             return
 
         # Encrypt and upload to GitHub, and create PR
-        self._encrypt_and_upload(student_id, assignment_name, downloaded_files, course_id, assignment_coursework_id or coursework_id, submission, coursework_title)
+        self._encrypt_and_upload(student_id, assignment_name, downloaded_files, course_id, assignment_coursework_id or coursework_id, submission, coursework_title, student_name)
 
     def _encrypt_and_upload(
         self,
@@ -174,7 +179,8 @@ class SubmissionProcessor:
         course_id: str = None,
         coursework_id: str = None,
         submission: Dict = None,
-        assignment_title: str = None
+        assignment_title: str = None,
+        student_name: str = None
     ):
         """
         Encrypt files and upload to GitHub, then create PR.
@@ -187,6 +193,7 @@ class SubmissionProcessor:
             coursework_id: Coursework/assignment ID (for metadata)
             submission: Submission dict (for PR metadata)
             assignment_title: Original assignment title for display
+            student_name: Student's full name from Classroom profile
         """
         # Create branch
         branch_name = self.github.get_or_create_branch(student_id, assignment_name)
@@ -294,6 +301,8 @@ class SubmissionProcessor:
 
             # Build PR body
             pr_body = f"## Student Submission\n\n"
+            if student_name:
+                pr_body += f"**Student Name:** {student_name}\n"
             pr_body += f"**Student:** {student_id}\n"
             pr_body += f"**Assignment:** {assignment_title or assignment_name}\n"
             pr_body += f"**Submitted:** {timestamp}\n"

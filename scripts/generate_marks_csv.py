@@ -10,11 +10,14 @@ Gets scores from:
 2. Artifacts attached to the PR
 
 Outputs CSV with:
-- Rows: One student per row (with emails in proper format)
-- Columns: One homework per column
+- Rows: One student per row
+- Columns: Student Name (if available), Student Email, Homework assignments
 
-Note: Student IDs like "ayumikhaylyuk_at_gmail_com" are automatically
-converted to proper email format "ayumikhaylyuk@gmail.com" in the CSV.
+Features:
+- Student IDs like "ayumikhaylyuk_at_gmail_com" are automatically
+  converted to proper email format "ayumikhaylyuk@gmail.com"
+- Student names are extracted from PR body if available
+  (looks for "**Student Name:** {name}" in PR description)
 """
 
 import argparse
@@ -131,6 +134,38 @@ def extract_score_from_comment(comment_body: str) -> Optional[float]:
     return None
 
 
+def extract_student_name_from_pr(pr) -> Optional[str]:
+    """
+    Extract student name from PR body if available.
+    
+    Args:
+        pr: PR object from PyGithub
+        
+    Returns:
+        Student name or None if not found
+    """
+    if not pr.body:
+        return None
+    
+    # Look for patterns like "**Student Name:** John Doe"
+    patterns = [
+        r'\*\*Student Name:\*\*\s*(.+?)(?:\n|$)',
+        r'Student Name:\s*(.+?)(?:\n|$)',
+        r'\*\*Name:\*\*\s*(.+?)(?:\n|$)',
+        r'Name:\s*(.+?)(?:\n|$)',
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, pr.body, re.MULTILINE)
+        if match:
+            name = match.group(1).strip()
+            # Remove any markdown formatting
+            name = re.sub(r'[*_]', '', name)
+            return name if name else None
+    
+    return None
+
+
 def extract_score_from_pr(pr) -> Optional[float]:
     """
     Extract score from a PR by checking comments.
@@ -177,6 +212,7 @@ def generate_marks_csv(repo_name: str, token: str, output_file: str):
     
     # Parse PRs and extract marks
     marks = defaultdict(dict)  # {student_email: {homework: score}}
+    student_names = {}  # {student_email: name}
     homework_set = set()
     
     print("\n📊 Processing PRs...")
@@ -191,6 +227,12 @@ def generate_marks_csv(repo_name: str, token: str, output_file: str):
         
         # Convert student_id to proper email format
         student_email = get_student_email_from_id(student_id)
+        
+        # Extract student name if available (only once per student)
+        if student_email not in student_names:
+            name = extract_student_name_from_pr(pr)
+            if name:
+                student_names[student_email] = name
         
         # Extract score from PR
         score = extract_score_from_pr(pr)
@@ -220,13 +262,23 @@ def generate_marks_csv(repo_name: str, token: str, output_file: str):
     with open(output_file, 'w', newline='') as f:
         writer = csv.writer(f)
         
-        # Header row
-        header = ['Student'] + homeworks
+        # Header row - include Name if any names were found
+        if student_names:
+            header = ['Student Name', 'Student Email'] + homeworks
+        else:
+            header = ['Student Email'] + homeworks
         writer.writerow(header)
         
         # Data rows
         for student in students:
-            row = [student]
+            if student_names:
+                # Include name column
+                name = student_names.get(student, '')
+                row = [name, student]
+            else:
+                # Email only
+                row = [student]
+            
             for homework in homeworks:
                 score = marks[student].get(homework, '')
                 if score != '':

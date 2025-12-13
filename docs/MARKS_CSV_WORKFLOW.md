@@ -56,17 +56,21 @@ Your grade for this assignment: 75%
 The generated CSV file has this structure:
 
 ```csv
-Student,Homework-1,Homework-2,Homework-3,Homework-4
-john.doe@example.com,85.0,92.5,,88.0
-jane.smith@example.com,90.0,95.0,78.5,
-ayumikhaylyuk@gmail.com,88.0,,,85.0
+Student Name,Student Email,Homework-1,Homework-2,Homework-3,Homework-4
+John Doe,john.doe@example.com,85.0,92.5,,88.0
+Jane Smith,jane.smith@example.com,90.0,95.0,78.5,
+Ayumi Haylyuk,ayumikhaylyuk@gmail.com,88.0,,,85.0
 ```
 
-- First column: Student email (converted to proper email format)
+- First column: Student name (from Google Classroom profile, if available)
+- Second column: Student email (converted to proper email format)
 - Remaining columns: One per homework (sorted alphabetically)
 - Values: Percentage scores (empty if not submitted/graded)
 
-**Note:** Student identifiers in PR titles like `ayumikhaylyuk_at_gmail_com` are automatically converted to proper email format (`ayumikhaylyuk@gmail.com`) in the CSV output.
+**Notes:**
+- Student identifiers in PR titles like `ayumikhaylyuk_at_gmail_com` are automatically converted to proper email format (`ayumikhaylyuk@gmail.com`)
+- Student names are extracted from PR body if available (requires PR to contain "**Student Name:** {name}" field)
+- If no names are found in any PR, the CSV will only have the "Student Email" column (no Name column)
 
 ## Running the Workflow
 
