@@ -159,8 +159,9 @@ def extract_student_name_from_pr(pr) -> Optional[str]:
         match = re.search(pattern, pr.body, re.MULTILINE)
         if match:
             name = match.group(1).strip()
-            # Remove any markdown formatting
-            name = re.sub(r'[*_]', '', name)
+            # Remove markdown bold/italic from beginning and end only
+            # (e.g., "**John Doe**" -> "John Doe", but preserve internal underscores)
+            name = name.strip('*_')
             return name if name else None
     
     return None
@@ -213,6 +214,7 @@ def generate_marks_csv(repo_name: str, token: str, output_file: str):
     # Parse PRs and extract marks
     marks = defaultdict(dict)  # {student_email: {homework: score}}
     student_names = {}  # {student_email: name}
+    student_prs = defaultdict(list)  # {student_email: [prs]}
     homework_set = set()
     
     print("\n📊 Processing PRs...")
@@ -228,11 +230,9 @@ def generate_marks_csv(repo_name: str, token: str, output_file: str):
         # Convert student_id to proper email format
         student_email = get_student_email_from_id(student_id)
         
-        # Extract student name if available (only once per student)
+        # Store PR for name extraction later
         if student_email not in student_names:
-            name = extract_student_name_from_pr(pr)
-            if name:
-                student_names[student_email] = name
+            student_prs[student_email].append(pr)
         
         # Extract score from PR
         score = extract_score_from_pr(pr)
@@ -243,6 +243,16 @@ def generate_marks_csv(repo_name: str, token: str, output_file: str):
             print(f"   ✓ {student_email} - {homework_name}: {score:.1f}%")
         else:
             print(f"   ⚠ {student_email} - {homework_name}: No score found")
+    
+    # Extract student names (one per student, from their first PR)
+    print("\n📝 Extracting student names...")
+    for student_email, pr_list in student_prs.items():
+        if pr_list:
+            # Try to get name from the first PR
+            name = extract_student_name_from_pr(pr_list[0])
+            if name:
+                student_names[student_email] = name
+                print(f"   ✓ Found name for {student_email}: {name}")
     
     if not marks:
         print("\n⚠️  No submission PRs found")
