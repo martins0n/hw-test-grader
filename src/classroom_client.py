@@ -128,6 +128,22 @@ class ClassroomClient:
         coursework = results.get('courseWork', [])
         return coursework
 
+    def list_students(self, course_id: str) -> List[Dict]:
+        """
+        List all students enrolled in a given course.
+
+        Args:
+            course_id: The ID of the course
+
+        Returns:
+            List of student objects with profile information
+        """
+        results = self.service.courses().students().list(
+            courseId=course_id
+        ).execute()
+        students = results.get('students', [])
+        return students
+
     def get_submissions(self, course_id: str, coursework_id: str) -> List[Dict]:
         """
         Get all student submissions for a specific assignment.
