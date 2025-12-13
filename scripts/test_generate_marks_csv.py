@@ -13,42 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 # Import the functions we want to test
-from generate_marks_csv import parse_pr_title, extract_score_from_comment, get_student_email_from_id, extract_student_name_from_pr
-
-
-def test_extract_student_name_from_pr():
-    """Test student name extraction from PR body."""
-    print("Testing student name extraction from PR body...")
-    
-    # Create a simple mock PR object with body attribute
-    class MockPR:
-        def __init__(self, body):
-            self.body = body
-    
-    test_cases = [
-        ("**Student Name:** John Doe\n**Student:** test@example.com", "John Doe"),
-        ("Student Name: Jane Smith\nAssignment: HW1", "Jane Smith"),
-        ("**Name:** Bob Johnson\n", "Bob Johnson"),
-        ("Name: Alice Williams\nOther info", "Alice Williams"),
-        ("No name here\nJust other content", None),
-        (None, None),
-    ]
-    
-    passed = 0
-    failed = 0
-    
-    for body, expected in test_cases:
-        pr = MockPR(body)
-        result = extract_student_name_from_pr(pr)
-        if result == expected:
-            print(f"  ✓ Extracted name: '{result}'")
-            passed += 1
-        else:
-            print(f"  ✗ Expected '{expected}', got '{result}'")
-            failed += 1
-    
-    print(f"\nName Extraction: {passed} passed, {failed} failed\n")
-    return failed == 0
+from generate_marks_csv import parse_pr_title, extract_score_from_comment, get_student_email_from_id
 
 
 def test_get_student_email_from_id():
@@ -150,7 +115,6 @@ def main():
     print()
     
     results = []
-    results.append(test_extract_student_name_from_pr())
     results.append(test_get_student_email_from_id())
     results.append(test_parse_pr_title())
     results.append(test_extract_score_from_comment())

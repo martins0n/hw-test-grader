@@ -16,8 +16,9 @@ Outputs CSV with:
 Features:
 - Student IDs like "ayumikhaylyuk_at_gmail_com" are automatically
   converted to proper email format "ayumikhaylyuk@gmail.com"
-- Student names are extracted from PR body if available
-  (looks for "**Student Name:** {name}" in PR description)
+- Student names are fetched directly from Google Classroom API
+  (requires --course-id parameter and valid credentials)
+- Falls back to email-only CSV if Classroom credentials not provided
 """
 
 import argparse
@@ -31,6 +32,10 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 
 from github import Github, GithubException
+
+# Add parent directory to path to import ClassroomClient
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from src.classroom_client import ClassroomClient
 
 
 def get_student_email_from_id(student_id: str) -> str:
@@ -134,37 +139,57 @@ def extract_score_from_comment(comment_body: str) -> Optional[float]:
     return None
 
 
-def extract_student_name_from_pr(pr) -> Optional[str]:
+def get_classroom_student_names(classroom_client: Optional[ClassroomClient], 
+                                 course_id: str,
+                                 student_emails: List[str]) -> Dict[str, str]:
     """
-    Extract student name from PR body if available.
+    Fetch student names from Google Classroom API.
     
     Args:
-        pr: PR object from PyGithub
+        classroom_client: ClassroomClient instance (optional)
+        course_id: Course ID from Google Classroom
+        student_emails: List of student email addresses
         
     Returns:
-        Student name or None if not found
+        Dictionary mapping email to full name
     """
-    if not pr.body:
-        return None
+    if not classroom_client or not course_id:
+        return {}
     
-    # Look for patterns like "**Student Name:** John Doe"
-    patterns = [
-        r'\*\*Student Name:\*\*\s*(.+?)(?:\n|$)',
-        r'Student Name:\s*(.+?)(?:\n|$)',
-        r'\*\*Name:\*\*\s*(.+?)(?:\n|$)',
-        r'Name:\s*(.+?)(?:\n|$)',
-    ]
+    student_names = {}
     
-    for pattern in patterns:
-        match = re.search(pattern, pr.body, re.MULTILINE)
-        if match:
-            name = match.group(1).strip()
-            # Remove markdown bold/italic from beginning and end only
-            # (e.g., "**John Doe**" -> "John Doe", but preserve internal underscores)
-            name = name.strip('*_')
-            return name if name else None
+    print(f"\n👥 Fetching student names from Google Classroom (course: {course_id})...")
     
-    return None
+    try:
+        # Get all students in the course
+        students = classroom_client.service.courses().students().list(
+            courseId=course_id
+        ).execute().get('students', [])
+        
+        # Build a mapping of email to name
+        for student in students:
+            profile = student.get('profile', {})
+            email = profile.get('emailAddress', '').lower()
+            name_obj = profile.get('name', {})
+            full_name = name_obj.get('fullName', '')
+            
+            if email and full_name:
+                student_names[email] = full_name
+        
+        # Match with our student list
+        found_count = 0
+        for email in student_emails:
+            if email.lower() in student_names:
+                found_count += 1
+                print(f"   ✓ {email}: {student_names[email.lower()]}")
+        
+        print(f"   Found {found_count}/{len(student_emails)} student names")
+        
+    except Exception as e:
+        print(f"   ⚠️  Error fetching names from Classroom: {e}")
+        return {}
+    
+    return student_names
 
 
 def extract_score_from_pr(pr) -> Optional[float]:
@@ -192,7 +217,10 @@ def extract_score_from_pr(pr) -> Optional[float]:
     return None
 
 
-def generate_marks_csv(repo_name: str, token: str, output_file: str):
+def generate_marks_csv(repo_name: str, token: str, output_file: str, 
+                       course_id: str = None,
+                       credentials_path: str = None,
+                       token_path: str = None):
     """
     Generate CSV file with student marks from PRs.
     
@@ -200,6 +228,9 @@ def generate_marks_csv(repo_name: str, token: str, output_file: str):
         repo_name: Repository in format "owner/repo"
         token: GitHub API token
         output_file: Path to output CSV file
+        course_id: Google Classroom course ID (optional, for fetching student names)
+        credentials_path: Path to Google Classroom credentials (optional)
+        token_path: Path to Google Classroom token (optional)
     """
     print(f"🔍 Fetching PRs from {repo_name}...")
     
@@ -213,8 +244,6 @@ def generate_marks_csv(repo_name: str, token: str, output_file: str):
     
     # Parse PRs and extract marks
     marks = defaultdict(dict)  # {student_email: {homework: score}}
-    student_names = {}  # {student_email: name}
-    student_prs = defaultdict(list)  # {student_email: [prs]}
     homework_set = set()
     
     print("\n📊 Processing PRs...")
@@ -230,10 +259,6 @@ def generate_marks_csv(repo_name: str, token: str, output_file: str):
         # Convert student_id to proper email format
         student_email = get_student_email_from_id(student_id)
         
-        # Store PR for name extraction later
-        if student_email not in student_names:
-            student_prs[student_email].append(pr)
-        
         # Extract score from PR
         score = extract_score_from_pr(pr)
         
@@ -244,15 +269,19 @@ def generate_marks_csv(repo_name: str, token: str, output_file: str):
         else:
             print(f"   ⚠ {student_email} - {homework_name}: No score found")
     
-    # Extract student names (one per student, from their first PR)
-    print("\n📝 Extracting student names...")
-    for student_email, pr_list in student_prs.items():
-        if pr_list:
-            # Try to get name from the first PR
-            name = extract_student_name_from_pr(pr_list[0])
-            if name:
-                student_names[student_email] = name
-                print(f"   ✓ Found name for {student_email}: {name}")
+    # Fetch student names from Google Classroom if credentials provided
+    student_names = {}
+    if course_id and (credentials_path or token_path):
+        try:
+            classroom = ClassroomClient(
+                credentials_path=credentials_path or 'credentials.json',
+                token_path=token_path or 'token.json'
+            )
+            student_emails = list(marks.keys())
+            student_names = get_classroom_student_names(classroom, course_id, student_emails)
+        except Exception as e:
+            print(f"\n⚠️  Could not connect to Google Classroom: {e}")
+            print("   Continuing without student names...")
     
     if not marks:
         print("\n⚠️  No submission PRs found")
@@ -321,6 +350,20 @@ def main():
         default='reports/marks.csv',
         help='Output CSV file path (default: reports/marks.csv)'
     )
+    parser.add_argument(
+        '--course-id',
+        help='Google Classroom course ID (optional, for fetching student names)'
+    )
+    parser.add_argument(
+        '--credentials',
+        default='credentials.json',
+        help='Path to Google Classroom credentials.json (default: credentials.json)'
+    )
+    parser.add_argument(
+        '--classroom-token',
+        default='token.json',
+        help='Path to Google Classroom token.json (default: token.json)'
+    )
     
     args = parser.parse_args()
     
@@ -332,7 +375,14 @@ def main():
         sys.exit(1)
     
     try:
-        generate_marks_csv(args.repo, token, args.output)
+        generate_marks_csv(
+            args.repo, 
+            token, 
+            args.output,
+            course_id=args.course_id,
+            credentials_path=args.credentials if args.course_id else None,
+            token_path=args.classroom_token if args.course_id else None
+        )
     except GithubException as e:
         print(f"\n❌ GitHub API error: {e}")
         sys.exit(1)

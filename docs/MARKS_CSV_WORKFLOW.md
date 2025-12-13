@@ -55,6 +55,7 @@ Your grade for this assignment: 75%
 
 The generated CSV file has this structure:
 
+**With student names (when course_id provided):**
 ```csv
 Student Name,Student Email,Homework-1,Homework-2,Homework-3,Homework-4
 John Doe,john.doe@example.com,85.0,92.5,,88.0
@@ -62,15 +63,24 @@ Jane Smith,jane.smith@example.com,90.0,95.0,78.5,
 Ayumi Haylyuk,ayumikhaylyuk@gmail.com,88.0,,,85.0
 ```
 
-- First column: Student name (from Google Classroom profile, if available)
-- Second column: Student email (converted to proper email format)
+**Without student names (no course_id):**
+```csv
+Student Email,Homework-1,Homework-2,Homework-3,Homework-4
+john.doe@example.com,85.0,92.5,,88.0
+jane.smith@example.com,90.0,95.0,78.5,
+ayumikhaylyuk@gmail.com,88.0,,,85.0
+```
+
+- First column: Student name (from Google Classroom API, if course_id provided)
+- Second column (or first if no names): Student email (converted to proper email format)
 - Remaining columns: One per homework (sorted alphabetically)
 - Values: Percentage scores (empty if not submitted/graded)
 
 **Notes:**
 - Student identifiers in PR titles like `ayumikhaylyuk_at_gmail_com` are automatically converted to proper email format (`ayumikhaylyuk@gmail.com`)
-- Student names are extracted from PR body if available (requires PR to contain "**Student Name:** {name}" field)
-- If no names are found in any PR, the CSV will only have the "Student Email" column (no Name column)
+- Student names are fetched directly from Google Classroom API when `--course-id` parameter is provided
+- Requires valid Google Classroom credentials (`credentials.json` and `token.json`)
+- If course_id is not provided or credentials are invalid, the CSV will only have the "Student Email" column
 
 ## Running the Workflow
 
@@ -88,7 +98,17 @@ To generate the CSV on demand:
 2. Click the **Actions** tab
 3. Select **Generate Marks CSV** workflow
 4. Click **Run workflow** button
-5. Click **Run workflow** to confirm
+5. (Optional) Enter your Google Classroom **Course ID** to include student names
+6. Click **Run workflow** to confirm
+
+**With Student Names:**
+- Enter the Google Classroom course ID in the "course_id" field
+- Requires `GOOGLE_CREDENTIALS` and `GOOGLE_TOKEN` secrets to be configured
+- Names will be fetched from Google Classroom and included in CSV
+
+**Without Student Names:**
+- Leave the "course_id" field empty
+- CSV will only contain email addresses and scores
 
 ### Accessing the CSV
 
@@ -123,6 +143,7 @@ The script is located at: `scripts/generate_marks_csv.py`
 
 ### Usage
 
+**Basic usage (without student names):**
 ```bash
 python scripts/generate_marks_csv.py \
   --repo "owner/repo" \
@@ -130,10 +151,23 @@ python scripts/generate_marks_csv.py \
   [--token GITHUB_TOKEN]
 ```
 
+**With student names from Google Classroom:**
+```bash
+python scripts/generate_marks_csv.py \
+  --repo "owner/repo" \
+  --output reports/marks.csv \
+  --course-id "YOUR_COURSE_ID" \
+  [--credentials credentials.json] \
+  [--classroom-token token.json]
+```
+
 **Arguments:**
 - `--repo`: Repository in format "owner/repo" (required)
 - `--output`: Output CSV file path (default: reports/marks.csv)
 - `--token`: GitHub API token (or use GITHUB_TOKEN env var)
+- `--course-id`: Google Classroom course ID (optional, for student names)
+- `--credentials`: Path to Google Classroom credentials.json (default: credentials.json)
+- `--classroom-token`: Path to Google Classroom token.json (default: token.json)
 
 ### Testing Locally
 
