@@ -162,9 +162,7 @@ def get_classroom_student_names(classroom_client: Optional[ClassroomClient],
     
     try:
         # Get all students in the course
-        students = classroom_client.service.courses().students().list(
-            courseId=course_id
-        ).execute().get('students', [])
+        students = classroom_client.list_students(course_id)
         
         # Build a mapping of email to name
         for student in students:
