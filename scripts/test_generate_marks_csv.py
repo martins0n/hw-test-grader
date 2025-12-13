@@ -13,7 +13,34 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 # Import the functions we want to test
-from generate_marks_csv import parse_pr_title, extract_score_from_comment
+from generate_marks_csv import parse_pr_title, extract_score_from_comment, get_student_email_from_id
+
+
+def test_get_student_email_from_id():
+    """Test student ID to email conversion."""
+    print("Testing student ID to email conversion...")
+    
+    test_cases = [
+        ("ayumikhaylyuk_at_gmail_com", "ayumikhaylyuk@gmail.com"),
+        ("john_doe_at_example_com", "john.doe@example.com"),
+        ("student123_at_university_edu", "student123@university.edu"),
+        ("test_user_at_domain_co_uk", "test.user@domain.co.uk"),
+    ]
+    
+    passed = 0
+    failed = 0
+    
+    for student_id, expected in test_cases:
+        result = get_student_email_from_id(student_id)
+        if result == expected:
+            print(f"  ✓ '{student_id}' -> '{result}'")
+            passed += 1
+        else:
+            print(f"  ✗ '{student_id}' -> Expected '{expected}', got '{result}'")
+            failed += 1
+    
+    print(f"\nEmail Conversion: {passed} passed, {failed} failed\n")
+    return failed == 0
 
 
 def test_parse_pr_title():
@@ -88,6 +115,7 @@ def main():
     print()
     
     results = []
+    results.append(test_get_student_email_from_id())
     results.append(test_parse_pr_title())
     results.append(test_extract_score_from_comment())
     

@@ -10,8 +10,11 @@ Gets scores from:
 2. Artifacts attached to the PR
 
 Outputs CSV with:
-- Rows: One student per row
+- Rows: One student per row (with emails in proper format)
 - Columns: One homework per column
+
+Note: Student IDs like "ayumikhaylyuk_at_gmail_com" are automatically
+converted to proper email format "ayumikhaylyuk@gmail.com" in the CSV.
 """
 
 import argparse
@@ -25,6 +28,26 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 
 from github import Github, GithubException
+
+
+def get_student_email_from_id(student_id: str) -> str:
+    """
+    Convert student_id back to email format.
+
+    Args:
+        student_id: Student identifier (email with @ and . replaced)
+
+    Returns:
+        Student email address
+    """
+    # Reverse the transformation done in classroom_client.py:
+    # email.replace('@', '_at_').replace('.', '_')
+    email = student_id.replace('_at_', '@')
+    # Replace remaining underscores with dots
+    # But be careful - some emails might have underscores originally
+    # This is a best-effort conversion
+    email = email.replace('_', '.')
+    return email
 
 
 def parse_pr_title(title: str) -> Optional[Tuple[str, str]]:
@@ -155,7 +178,10 @@ def generate_marks_csv(repo_name: str, token: str, output_file: str):
         if not parsed:
             continue
         
-        student_email, homework_name = parsed
+        student_id, homework_name = parsed
+        
+        # Convert student_id to proper email format
+        student_email = get_student_email_from_id(student_id)
         
         # Extract score from PR
         score = extract_score_from_pr(pr)
