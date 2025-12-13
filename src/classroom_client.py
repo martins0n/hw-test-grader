@@ -138,10 +138,21 @@ class ClassroomClient:
         Returns:
             List of student objects with profile information
         """
-        results = self.service.courses().students().list(
-            courseId=course_id
-        ).execute()
-        students = results.get('students', [])
+        students = []
+        page_token = None
+
+        while True:
+            results = self.service.courses().students().list(
+                courseId=course_id,
+                pageToken=page_token
+            ).execute()
+
+            students.extend(results.get('students', []))
+            page_token = results.get('nextPageToken')
+
+            if not page_token:
+                break
+
         return students
 
     def get_submissions(self, course_id: str, coursework_id: str) -> List[Dict]:
