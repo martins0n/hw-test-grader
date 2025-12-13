@@ -179,9 +179,10 @@ def get_classroom_student_names(classroom_client: Optional[ClassroomClient],
         # Match with our student list
         found_count = 0
         for email in student_emails:
-            if email.lower() in student_names:
+            email_lower = email.lower()
+            if email_lower in student_names:
                 found_count += 1
-                print(f"   ✓ {email}: {student_names[email.lower()]}")
+                print(f"   ✓ {email}: {student_names[email_lower]}")
         
         print(f"   Found {found_count}/{len(student_emails)} student names")
         
@@ -279,6 +280,10 @@ def generate_marks_csv(repo_name: str, token: str, output_file: str,
             )
             student_emails = list(marks.keys())
             student_names = get_classroom_student_names(classroom, course_id, student_emails)
+        except FileNotFoundError as e:
+            print(f"\n⚠️  Classroom credentials file not found: {e}")
+            print("   Make sure credentials.json and/or token.json exist")
+            print("   Continuing without student names...")
         except Exception as e:
             print(f"\n⚠️  Could not connect to Google Classroom: {e}")
             print("   Continuing without student names...")

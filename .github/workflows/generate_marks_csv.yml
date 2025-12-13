@@ -84,7 +84,14 @@ jobs:
             
             # Count students and homeworks
             STUDENTS=$(tail -n +2 reports/marks.csv | wc -l)
-            HOMEWORKS=$(head -1 reports/marks.csv | tr ',' '\n' | tail -n +2 | wc -l)
+            # Count homework columns (all columns minus student identifier columns)
+            # First check if we have "Student Name" column (2 identifier columns) or just email (1 column)
+            FIRST_COL=$(head -1 reports/marks.csv | cut -d',' -f1)
+            if [[ "$FIRST_COL" == "Student Name" ]]; then
+              HOMEWORKS=$(head -1 reports/marks.csv | tr ',' '\n' | tail -n +3 | wc -l)
+            else
+              HOMEWORKS=$(head -1 reports/marks.csv | tr ',' '\n' | tail -n +2 | wc -l)
+            fi
             
             echo "**Summary:**" >> $GITHUB_STEP_SUMMARY
             echo "- Students: $STUDENTS" >> $GITHUB_STEP_SUMMARY
