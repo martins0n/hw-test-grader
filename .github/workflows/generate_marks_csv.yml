@@ -35,10 +35,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Set up Google Classroom credentials (if needed)
+      - name: Determine course ID
+        id: course-id
         env:
-          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
-          GOOGLE_TOKEN: ${{ secrets.GOOGLE_TOKEN }}
           COURSE_ID: ${{ github.event.inputs.course_id }}
           COURSE_IDS: ${{ secrets.COURSE_IDS }}
         run: |
@@ -48,27 +47,33 @@ jobs:
             echo "Using first course ID from COURSE_IDS: $COURSE_ID"
           fi
           
+          # Export for subsequent steps
+          echo "COURSE_ID=$COURSE_ID" >> $GITHUB_OUTPUT
+          
           if [ ! -z "$COURSE_ID" ]; then
-            if [ ! -z "$GOOGLE_CREDENTIALS" ]; then
-              echo "$GOOGLE_CREDENTIALS" > credentials.json
-            fi
-            if [ ! -z "$GOOGLE_TOKEN" ]; then
-              echo "$GOOGLE_TOKEN" | base64 -d > token.json
-            fi
+            echo "Course ID configured: $COURSE_ID"
+          else
+            echo "No course ID configured - will generate CSV without student names"
+          fi
+
+      - name: Set up Google Classroom credentials (if needed)
+        if: steps.course-id.outputs.COURSE_ID != ''
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          GOOGLE_TOKEN: ${{ secrets.GOOGLE_TOKEN }}
+        run: |
+          if [ ! -z "$GOOGLE_CREDENTIALS" ]; then
+            echo "$GOOGLE_CREDENTIALS" > credentials.json
+          fi
+          if [ ! -z "$GOOGLE_TOKEN" ]; then
+            echo "$GOOGLE_TOKEN" | base64 -d > token.json
           fi
 
       - name: Generate marks CSV from PRs
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          COURSE_ID: ${{ github.event.inputs.course_id }}
-          COURSE_IDS: ${{ secrets.COURSE_IDS }}
+          COURSE_ID: ${{ steps.course-id.outputs.COURSE_ID }}
         run: |
-          # Use input course_id if provided, otherwise use first course from COURSE_IDS
-          if [ -z "$COURSE_ID" ] && [ ! -z "$COURSE_IDS" ]; then
-            COURSE_ID=$(echo "$COURSE_IDS" | cut -d',' -f1 | xargs)
-            echo "Using first course ID from COURSE_IDS: $COURSE_ID"
-          fi
-          
           if [ ! -z "$COURSE_ID" ]; then
             python scripts/generate_marks_csv.py \
               --repo "${{ github.repository }}" \
