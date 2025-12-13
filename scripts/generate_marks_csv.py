@@ -24,7 +24,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 
-import requests
+from github import Github, GithubException
 
 
 def parse_pr_title(title: str) -> Optional[Tuple[str, str]]:
@@ -99,117 +99,48 @@ def extract_score_from_comment(comment_body: str) -> Optional[float]:
     return None
 
 
-def get_github_api_headers(token: str) -> Dict[str, str]:
-    """Get headers for GitHub API requests."""
-    return {
-        'Authorization': f'Bearer {token}',
-        'Accept': 'application/vnd.github.v3+json'
-    }
-
-
-def fetch_prs(repo: str, token: str, state: str = 'all') -> List[Dict]:
-    """
-    Fetch PRs from GitHub repository.
-    
-    Args:
-        repo: Repository in format "owner/repo"
-        token: GitHub API token
-        state: PR state filter (all, open, closed)
-        
-    Returns:
-        List of PR objects
-    """
-    headers = get_github_api_headers(token)
-    prs = []
-    page = 1
-    per_page = 100
-    
-    while True:
-        url = f'https://api.github.com/repos/{repo}/pulls'
-        params = {
-            'state': state,
-            'per_page': per_page,
-            'page': page
-        }
-        
-        response = requests.get(url, headers=headers, params=params)
-        response.raise_for_status()
-        
-        page_prs = response.json()
-        if not page_prs:
-            break
-            
-        prs.extend(page_prs)
-        
-        # Check if there are more pages
-        if len(page_prs) < per_page:
-            break
-            
-        page += 1
-    
-    return prs
-
-
-def fetch_pr_comments(repo: str, pr_number: int, token: str) -> List[Dict]:
-    """
-    Fetch comments for a specific PR.
-    
-    Args:
-        repo: Repository in format "owner/repo"
-        pr_number: PR number
-        token: GitHub API token
-        
-    Returns:
-        List of comment objects
-    """
-    headers = get_github_api_headers(token)
-    url = f'https://api.github.com/repos/{repo}/issues/{pr_number}/comments'
-    
-    response = requests.get(url, headers=headers)
-    response.raise_for_status()
-    
-    return response.json()
-
-
-def extract_score_from_pr(repo: str, pr: Dict, token: str) -> Optional[float]:
+def extract_score_from_pr(pr) -> Optional[float]:
     """
     Extract score from a PR by checking comments.
     
     Args:
-        repo: Repository in format "owner/repo"
-        pr: PR object from GitHub API
-        token: GitHub API token
+        pr: PR object from PyGithub
         
     Returns:
         Score as percentage or None
     """
-    # Get all comments
-    pr_number = pr['number']
-    comments = fetch_pr_comments(repo, pr_number, token)
+    # Get all comments (issue comments on the PR)
+    comments = list(pr.get_issue_comments())
     
     if not comments:
         return None
     
     # Check last comment first (most recent grade)
     for comment in reversed(comments):
-        score = extract_score_from_comment(comment['body'])
+        score = extract_score_from_comment(comment.body)
         if score is not None:
             return score
     
     return None
 
 
-def generate_marks_csv(repo: str, token: str, output_file: str):
+def generate_marks_csv(repo_name: str, token: str, output_file: str):
     """
     Generate CSV file with student marks from PRs.
     
     Args:
-        repo: Repository in format "owner/repo"
+        repo_name: Repository in format "owner/repo"
         token: GitHub API token
         output_file: Path to output CSV file
     """
-    print(f"🔍 Fetching PRs from {repo}...")
-    prs = fetch_prs(repo, token)
+    print(f"🔍 Fetching PRs from {repo_name}...")
+    
+    # Initialize GitHub client
+    g = Github(token)
+    repo = g.get_repo(repo_name)
+    
+    # Get all PRs (open and closed)
+    prs = list(repo.get_pulls(state='all'))
     print(f"   Found {len(prs)} PRs")
     
     # Parse PRs and extract marks
@@ -218,7 +149,7 @@ def generate_marks_csv(repo: str, token: str, output_file: str):
     
     print("\n📊 Processing PRs...")
     for pr in prs:
-        title = pr['title']
+        title = pr.title
         parsed = parse_pr_title(title)
         
         if not parsed:
@@ -227,7 +158,7 @@ def generate_marks_csv(repo: str, token: str, output_file: str):
         student_email, homework_name = parsed
         
         # Extract score from PR
-        score = extract_score_from_pr(repo, pr, token)
+        score = extract_score_from_pr(pr)
         
         if score is not None:
             marks[student_email][homework_name] = score
@@ -305,9 +236,8 @@ def main():
     
     try:
         generate_marks_csv(args.repo, token, args.output)
-    except requests.exceptions.HTTPError as e:
+    except GithubException as e:
         print(f"\n❌ GitHub API error: {e}")
-        print(f"   Response: {e.response.text}")
         sys.exit(1)
     except Exception as e:
         print(f"\n❌ Error: {e}")
