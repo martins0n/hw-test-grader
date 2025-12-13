@@ -39,13 +39,22 @@ def get_student_email_from_id(student_id: str) -> str:
 
     Returns:
         Student email address
+    
+    Note:
+        This conversion has a limitation: it cannot distinguish between
+        underscores that were originally dots and underscores that were
+        already in the email. For example:
+        - 'test_user@example.com' becomes 'test_user_at_example_com' (encoded)
+        - Then converts back to 'test.user@example.com' (incorrect)
+        
+        This matches the behavior in aggregate_grades.py and send_results.py.
+        To avoid issues, student emails should not contain underscores.
     """
     # Reverse the transformation done in classroom_client.py:
     # email.replace('@', '_at_').replace('.', '_')
     email = student_id.replace('_at_', '@')
     # Replace remaining underscores with dots
-    # But be careful - some emails might have underscores originally
-    # This is a best-effort conversion
+    # This is a best-effort conversion (see Note in docstring)
     email = email.replace('_', '.')
     return email
 
