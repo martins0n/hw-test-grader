@@ -102,7 +102,7 @@ def extract_score_from_comment(comment_body: str) -> Optional[float]:
 def get_github_api_headers(token: str) -> Dict[str, str]:
     """Get headers for GitHub API requests."""
     return {
-        'Authorization': f'token {token}',
+        'Authorization': f'Bearer {token}',
         'Accept': 'application/vnd.github.v3+json'
     }
 
@@ -227,7 +227,7 @@ def generate_marks_csv(repo: str, token: str, output_file: str):
         student_email, homework_name = parsed
         
         # Extract score from PR
-        score = extract_score_from_pr(repo, pr['number'], token)
+        score = extract_score_from_pr(repo, pr, token)
         
         if score is not None:
             marks[student_email][homework_name] = score

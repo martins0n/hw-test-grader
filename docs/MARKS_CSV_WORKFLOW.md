@@ -197,8 +197,8 @@ schedule:
   # Run twice a week (Monday and Thursday at 9 AM)
   - cron: '0 9 * * 1,4'
   
-  # Run at end of each month
-  - cron: '0 0 L * *'
+  # Run on first day of each month
+  - cron: '0 0 1 * *'
 ```
 
 ### Modify Score Patterns
