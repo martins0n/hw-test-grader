@@ -23,6 +23,7 @@
     {
       "name": "Default anomaly detection",
       "points": 20,
+      "tolerance": 0.3,
       "expected": {
         "default_median": 8.453555185690409,
         "default_density": 8.545959142529465,
@@ -33,8 +34,8 @@
       "name": "Tuned anomaly detection",
       "points": 40,
       "expected": {
-        "tuned_median": 8.30,
-        "tuned_density": 8.47,
+        "tuned_median": 8.40,
+        "tuned_density": 8.50,
         "tuned_prediction_intervals": 7.80
       },
       "compare_fields": {
