@@ -1,0 +1,47 @@
+{
+  "test_cases": [
+    {
+      "name": "Isolation Forest with detrending",
+      "points": 20,
+      "expected": {
+        "if_trend_f1_score": 0.28
+      },
+      "compare_fields": {
+        "if_trend_f1_score": ">="
+      }
+    },
+    {
+      "name": "Isolation Forest with features",
+      "points": 20,
+      "expected": {
+        "if_feat_f1_score": 0.29
+      },
+      "compare_fields": {
+        "if_feat_f1_score": ">="
+      }
+    },
+    {
+      "name": "Default anomaly detection",
+      "points": 20,
+      "expected": {
+        "default_median": 8.453555185690409,
+        "default_density": 8.545959142529465,
+        "default_prediction_intervals": 7.980108031356881
+      }
+    },
+    {
+      "name": "Tuned anomaly detection",
+      "points": 40,
+      "expected": {
+        "tuned_median": 8.30,
+        "tuned_density": 8.47,
+        "tuned_prediction_intervals": 7.80
+      },
+      "compare_fields": {
+        "tuned_median": "<",
+        "tuned_density": "<",
+        "tuned_prediction_intervals": "<"
+      }
+    }
+  ]
+}
