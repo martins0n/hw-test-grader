@@ -17,7 +17,7 @@
         "if_feat_f1_score": 0.29
       },
       "compare_fields": {
-        "if_trend_f1_score": ">="
+        "if_feat_f1_score": ">="
       }
     },
     {
