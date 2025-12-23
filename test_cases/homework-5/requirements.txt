@@ -1,0 +1,2 @@
+etna[prophet,auto]@git+https://github.com/etna-team/etna.git@3.0.0
+adtk==0.6.2
