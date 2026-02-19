@@ -1,0 +1,58 @@
+{
+  "test_cases": [
+    {
+      "name": "Task 1: Sanity check",
+      "points": 5,
+      "expected": {
+        "n_segments": 25
+      },
+      "compare_fields": {
+        "n_segments": "="
+      }
+    },
+    {
+      "name": "Task 2: MLP",
+      "points": 25,
+      "expected": {
+        "mlp_smape": 23
+      },
+      "compare_fields": {
+        "mlp_smape": "<"
+      }
+    },
+    {
+      "name": "Task 3: RNN vs RNN",
+      "points": 30,
+      "expected": {
+        "rnn_baseline_smape": 30,
+        "rnn_modified_smape": 25,
+        "compared": true
+      },
+      "compare_fields": {
+        "rnn_modified_smape": "<",
+        "rnn_baseline_smape": "<",
+        "compared": "="
+      }
+    },
+    {
+      "name": "Task 4: Chronos tiny runs and forecasts",
+      "points": 20,
+      "expected": {
+        "chronos_smape": 25
+      },
+      "compare_fields": {
+        "chronos_smape": "<"
+      }
+    },
+    {
+      "name": "Task 5: Final pipeline sanity check",
+      "points": 20,
+      "expected": {
+        "сurrent_pipeline": 366
+      },
+      "compare_fields": {
+        "сurrent_pipeline": "="
+      }
+    }
+  ]
+}
