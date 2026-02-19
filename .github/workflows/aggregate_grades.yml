@@ -9,10 +9,6 @@ on:
         required: false
         type: string
 
-  # Run daily to aggregate recent grades
-  schedule:
-    - cron: '0 2 * * *'  # Run at 2 AM daily
-
 jobs:
   aggregate:
     runs-on: ubuntu-latest
