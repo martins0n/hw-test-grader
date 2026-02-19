@@ -1,0 +1,6 @@
+--index-url https://download.pytorch.org/whl/cpu
+--extra-index-url https://pypi.org/simple
+torch==2.6.0+cpu
+etna[all]@git+https://github.com/etna-team/etna.git@3.0.0
+transformers==4.51.2
+scikit-learn==1.6.1
