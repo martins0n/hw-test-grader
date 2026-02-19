@@ -1,10 +1,6 @@
 name: Download Student Submissions
 
 on:
-  # Run on schedule (every hour)
-  schedule:
-    - cron: '0 * * * *'
-
   # Allow manual trigger
   workflow_dispatch:
     inputs:
