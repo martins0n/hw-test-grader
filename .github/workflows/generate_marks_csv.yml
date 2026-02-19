@@ -8,10 +8,6 @@ on:
         description: 'Google Classroom Course ID (optional, for fetching student names)'
         required: false
         type: string
-  
-  # Run weekly to generate updated marks CSV
-  schedule:
-    - cron: '0 8 * * 0'  # Every Sunday at 8 AM UTC
 
 jobs:
   generate:
