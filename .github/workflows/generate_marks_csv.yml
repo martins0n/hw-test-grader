@@ -1,0 +1,128 @@
+name: Generate Marks CSV
+
+on:
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      course_id:
+        description: 'Google Classroom Course ID (optional, for fetching student names)'
+        required: false
+        type: string
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Determine course ID
+        id: course-id
+        env:
+          COURSE_ID: ${{ github.event.inputs.course_id }}
+          COURSE_IDS: ${{ secrets.COURSE_IDS }}
+        run: |
+          # Use input course_id if provided, otherwise use first course from COURSE_IDS
+          if [ -z "$COURSE_ID" ] && [ ! -z "$COURSE_IDS" ]; then
+            COURSE_ID=$(echo "$COURSE_IDS" | cut -d',' -f1 | xargs)
+            echo "Using first course ID from COURSE_IDS: $COURSE_ID"
+          fi
+          
+          # Export for subsequent steps
+          echo "COURSE_ID=$COURSE_ID" >> $GITHUB_OUTPUT
+          
+          if [ ! -z "$COURSE_ID" ]; then
+            echo "Course ID configured: $COURSE_ID"
+          else
+            echo "No course ID configured - will generate CSV without student names"
+          fi
+
+      - name: Set up Google Classroom credentials (if needed)
+        if: steps.course-id.outputs.COURSE_ID != ''
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          GOOGLE_TOKEN: ${{ secrets.GOOGLE_TOKEN }}
+        run: |
+          if [ ! -z "$GOOGLE_CREDENTIALS" ]; then
+            echo "$GOOGLE_CREDENTIALS" > credentials.json
+          fi
+          if [ ! -z "$GOOGLE_TOKEN" ]; then
+            echo "$GOOGLE_TOKEN" | base64 -d > token.json
+          fi
+
+      - name: Generate marks CSV from PRs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COURSE_ID: ${{ steps.course-id.outputs.COURSE_ID }}
+        run: |
+          if [ ! -z "$COURSE_ID" ]; then
+            python scripts/generate_marks_csv.py \
+              --repo "${{ github.repository }}" \
+              --output reports/marks.csv \
+              --course-id "$COURSE_ID"
+          else
+            python scripts/generate_marks_csv.py \
+              --repo "${{ github.repository }}" \
+              --output reports/marks.csv
+          fi
+
+      - name: Upload marks CSV
+        uses: actions/upload-artifact@v4
+        with:
+          name: marks-csv-${{ github.run_number }}
+          path: reports/marks.csv
+          if-no-files-found: warn
+
+      - name: Display CSV preview
+        if: always()
+        run: |
+          if [ -f reports/marks.csv ]; then
+            echo "## Marks CSV Preview" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            head -20 reports/marks.csv >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Count students and homeworks
+            STUDENTS=$(tail -n +2 reports/marks.csv | wc -l)
+            # Count homework columns (all columns minus student identifier columns)
+            # First check if we have "Student Name" column (2 identifier columns) or just email (1 column)
+            FIRST_COL=$(head -1 reports/marks.csv | cut -d',' -f1)
+            if [[ "$FIRST_COL" == "Student Name" ]]; then
+              HOMEWORKS=$(head -1 reports/marks.csv | tr ',' '\n' | tail -n +3 | wc -l)
+            else
+              HOMEWORKS=$(head -1 reports/marks.csv | tr ',' '\n' | tail -n +2 | wc -l)
+            fi
+            
+            echo "**Summary:**" >> $GITHUB_STEP_SUMMARY
+            echo "- Students: $STUDENTS" >> $GITHUB_STEP_SUMMARY
+            echo "- Homeworks: $HOMEWORKS" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ No CSV file generated" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "Marks CSV generation completed at $(date)"
+          if [ -f reports/marks.csv ]; then
+            echo "CSV file available in artifacts"
+          else
+            echo "No CSV generated - check logs for details"
+          fi
